@@ -3,64 +3,84 @@ package mygame;
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
 import com.jme3.material.RenderState;
-import com.jme3.math.Vector3f;
-import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Geometry;
-import com.jme3.scene.shape.Quad;
+import com.jme3.scene.Node;
 import com.jme3.scene.VertexBuffer;
+import com.jme3.scene.shape.Quad;
 import com.jme3.texture.Texture;
+import com.jme3.math.Vector3f;
 
 public class Player {
 
-    private Geometry geometry;
-    private Quad quad;
-    private Texture spriteTex;
+    private final Node node;         // Nodo padre per pivot e flip
+    private final Geometry geometry;  // Sprite
+    private final Quad quad;
+    private final Texture spriteTex;
 
+    // Sprite sheet
+    private final int numFramesX = 4;
+    private final int numFramesY = 2;
     private int currentFrame = 0;
-    private float frameTimer = 0;
+    private float frameTimer = 0f;
     private final float frameDuration = 0.15f;
 
-    private final int numFramesX = 4; // colonne
-    private final int numFramesY = 2; // righe
-
-    private float speed = 1f;
-    private float jumpForce = 3.5f;
-    private float gravity = -13f;
-    private float velocityY = 0;
+    // Movimento
+    private float speed = 300f;
+    private float jumpForce = 650f;
+    private float gravity = -900f;
+    private float velocityY = 0f;
     private boolean left, right, jumping;
+    private boolean facingLeft = false;
 
-    private float groundY = -0.415f;
+    // Dimensioni
+    private float groundY;
+    private float screenWidth;
+    private float screenHeight;
+    private float playerSize;
 
-    private boolean facingLeft = false; // per flip orizzontale
+    // cooldown sparo
+    private float shootTimer = 0f;
 
-    public Player(AssetManager assetManager) {
-        // Carica texture
+    public Player(AssetManager assetManager, float screenWidth, float screenHeight) {
+        this.screenWidth = screenWidth;
+        this.screenHeight = screenHeight;
+        this.groundY = 200f;
+        this.playerSize = 218f; // Dimensione singolo frame in pixel
+
+        // === Texture ===
         spriteTex = assetManager.loadTexture("Textures/characters_assets.png");
         spriteTex.setMagFilter(Texture.MagFilter.Nearest);
         spriteTex.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
 
-        // Crea Quad
-        quad = new Quad(0.2f, 0.2f, true);
+        // === Quad ===
+        quad = new Quad(120, 300, false);
         geometry = new Geometry("Player", quad);
 
-        // Materiale e trasparenza
-        Material spriteMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        spriteMat.setTexture("ColorMap", spriteTex);
-        spriteMat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
-        geometry.setQueueBucket(RenderQueue.Bucket.Transparent);
-        geometry.setMaterial(spriteMat);
+        // === Materiale ===
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setTexture("ColorMap", spriteTex);
+        mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+        geometry.setMaterial(mat);
+
+        // === Nodo padre ===
+        node = new Node("PlayerNode");
+        geometry.setLocalTranslation(-quad.getWidth() / 2f, -quad.getHeight() / 2f, 0);
+        node.attachChild(geometry);
+
+        // Posizione iniziale
+        node.setLocalTranslation(screenWidth / 2f, groundY, 0);
 
         // Frame iniziale
-        setFrame(0, 0, false);
-        geometry.setLocalTranslation(-0.5f, groundY, 0.2f);
+        setFrame(0, 0);
     }
 
-    public Geometry getGeometry() {
-        return geometry;
+    public Node getGeometry() {
+        return node;
     }
 
     public void setLeft(boolean left) { this.left = left; }
     public void setRight(boolean right) { this.right = right; }
+
     public void jump() {
         if (!jumping) {
             velocityY = jumpForce;
@@ -69,28 +89,37 @@ public class Player {
     }
 
     public void update(float tpf) {
-        Vector3f pos = geometry.getLocalTranslation();
+        Vector3f pos = node.getLocalTranslation();
 
         // Movimento orizzontale
         if (left) pos.x -= speed * tpf;
         if (right) pos.x += speed * tpf;
 
-        // Flip orizzontale
-        if (left) facingLeft = true;
-        else if (right) facingLeft = false;
+        // Flip orizzontale con scala negativa
+        if (left && !facingLeft) {
+            facingLeft = true;
+            node.setLocalScale(-1f, 1f, 1f);
+            // Correggi posizione per compensare flip
+            node.setLocalTranslation(pos.x + quad.getWidth(), pos.y, pos.z);
+        } else if (right && facingLeft) {
+            facingLeft = false;
+            node.setLocalScale(1f, 1f, 1f);
+            // Correggi posizione per compensare flip
+            node.setLocalTranslation(pos.x - quad.getWidth(), pos.y, pos.z);
+        } else {
+            node.setLocalTranslation(pos);
+        }
 
         // Gravità
         velocityY += gravity * tpf;
         pos.y += velocityY * tpf;
 
-        // Collisione con il pavimento
+        // Pavimento
         if (pos.y <= groundY) {
             pos.y = groundY;
             velocityY = 0;
             jumping = false;
         }
-
-        geometry.setLocalTranslation(pos);
 
         // Animazione
         if (left || right) {
@@ -98,36 +127,49 @@ public class Player {
             if (frameTimer >= frameDuration) {
                 frameTimer = 0;
                 currentFrame = (currentFrame + 1) % numFramesX;
-                setFrame(currentFrame, 0, facingLeft);
+                setFrame(currentFrame, 0);
             }
         } else {
-            // fermo, frame iniziale
             currentFrame = 0;
-            setFrame(0, 0, facingLeft);
+            setFrame(0, 0);
+        }
+
+        if (shootTimer > 0f) {
+            shootTimer -= tpf;
         }
     }
 
-    private void setFrame(int frameX, int frameY, boolean flipX) {
-        float frameWidth = 1.0f / numFramesX;
-        float frameHeight = 1.0f / numFramesY;
+    private void setFrame(int frameX, int frameY) {
+        float frameWidth = 1f / numFramesX;
+        float frameHeight = 1f / numFramesY;
 
+        // UV del frame singolo
         float u1 = frameX * frameWidth;
-        float v1 = 1f - (frameY * frameHeight);
+        float vTop = 1f - frameY * frameHeight;    // alto del frame
         float u2 = u1 + frameWidth;
-        float v2 = v1 - frameHeight;
+        float vBottom = vTop - frameHeight;        // basso del frame
 
-        if (flipX) {
-            float temp = u1; 
-            u1 = u2; 
-            u2 = temp;
-        }
-
+        // Set delle UV sul Quad
         quad.setBuffer(VertexBuffer.Type.TexCoord, 2, new float[]{
-                u1, v2,
-                u2, v2,
-                u1, v1,
-                u2, v1
+            u1, vBottom,
+            u2, vBottom,
+            u1, vTop,
+            u2, vTop
         });
         quad.updateBound();
+    }
+
+    public void shoot(java.util.List<Bullet> bullets, AssetManager assetManager) {
+        if (shootTimer <= 0f) {
+            Vector3f bulletPos = node.getLocalTranslation().clone();
+            bulletPos.y += playerSize / 4f;
+            bulletPos.z = 0.2f;  // un po’ più in alto del player nel guiNode per layering
+
+            int direction = facingLeft ? -1 : 1;
+
+            Bullet bullet = new Bullet(assetManager, bulletPos, direction);
+            bullets.add(bullet);
+            shootTimer = 0.5f; // mezzo secondo cooldown
+        }
     }
 }
