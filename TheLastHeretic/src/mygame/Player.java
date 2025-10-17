@@ -15,19 +15,22 @@ public class Player {
     private final Node node;         // Nodo padre per pivot e flip
     private final Geometry geometry;  // Sprite
     private final Quad quad;
-    private final Texture spriteTex;
+    //private final Texture spriteTex;
 
     // Sprite sheet
-    private final int numFramesX = 4;
-    private final int numFramesY = 2;
-    private int currentFrame = 0;
-    private float frameTimer = 0f;
-    private final float frameDuration = 0.15f;
+    //private final int numFramesX = 4;
+    //private final int numFramesY = 2;
+    //private int currentFrame = 0;
+    //private float frameTimer = 0f;
+    //private final float frameDuration = 0.15f;
+    private Texture textureRight;
+    private Texture textureLeft;
+    private Material material;
 
     // Movimento
     private float speed = 300f;
     private float jumpForce = 650f;
-    private float gravity = -900f;
+    private float gravity = -1000f;
     private float velocityY = 0f;
     private boolean left, right, jumping;
     private boolean facingLeft = false;
@@ -45,33 +48,34 @@ public class Player {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
         this.groundY = 200f;
-        this.playerSize = 218f; // Dimensione singolo frame in pixel
+        this.playerSize = 218f;
 
-        // === Texture ===
-        spriteTex = assetManager.loadTexture("Textures/characters_assets.png");
-        spriteTex.setMagFilter(Texture.MagFilter.Nearest);
-        spriteTex.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
+        // === Carica le texture ===
+        textureRight = assetManager.loadTexture("Textures/character_right.png");
+        textureRight.setMagFilter(Texture.MagFilter.Nearest);
+        textureRight.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
 
-        // === Quad ===
-        quad = new Quad(120, 300, false);
+        textureLeft = assetManager.loadTexture("Textures/character_left.png");
+        textureLeft.setMagFilter(Texture.MagFilter.Nearest);
+        textureLeft.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
+
+        // === Crea il materiale e imposta texture di default ===
+        material = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        material.setTexture("ColorMap", textureRight); // Inizia con texture a destra
+        material.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+
+        // === Crea la geometria ===
+        quad = new Quad(300, 300, false);
         geometry = new Geometry("Player", quad);
+        geometry.setMaterial(material);
 
-        // === Materiale ===
-        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setTexture("ColorMap", spriteTex);
-        mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
-        geometry.setMaterial(mat);
-
-        // === Nodo padre ===
+        // === Crea nodo padre ===
         node = new Node("PlayerNode");
         geometry.setLocalTranslation(-quad.getWidth() / 2f, -quad.getHeight() / 2f, 0);
         node.attachChild(geometry);
 
-        // Posizione iniziale
+        // === Posizione iniziale ===
         node.setLocalTranslation(screenWidth / 2f, groundY, 0);
-
-        // Frame iniziale
-        setFrame(0, 0);
     }
 
     public Node getGeometry() {
@@ -95,8 +99,16 @@ public class Player {
         if (left) pos.x -= speed * tpf;
         if (right) pos.x += speed * tpf;
 
-        // Flip orizzontale con scala negativa
         if (left && !facingLeft) {
+            facingLeft = true;
+            material.setTexture("ColorMap", textureLeft);
+        } else if (right && facingLeft) {
+            facingLeft = false;
+            material.setTexture("ColorMap", textureRight);
+        }
+
+        // Flip orizzontale con scala negativa
+        /*if (left && !facingLeft) {
             facingLeft = true;
             node.setLocalScale(-1f, 1f, 1f);
             // Correggi posizione per compensare flip
@@ -108,12 +120,14 @@ public class Player {
             node.setLocalTranslation(pos.x - quad.getWidth(), pos.y, pos.z);
         } else {
             node.setLocalTranslation(pos);
-        }
+        }*/
 
         // Gravità
         velocityY += gravity * tpf;
         pos.y += velocityY * tpf;
 
+        node.setLocalTranslation(pos);
+        
         // Pavimento
         if (pos.y <= groundY) {
             pos.y = groundY;
@@ -122,7 +136,7 @@ public class Player {
         }
 
         // Animazione
-        if (left || right) {
+        /*if (left || right) {
             frameTimer += tpf;
             if (frameTimer >= frameDuration) {
                 frameTimer = 0;
@@ -132,14 +146,14 @@ public class Player {
         } else {
             currentFrame = 0;
             setFrame(0, 0);
-        }
+        }*/
 
         if (shootTimer > 0f) {
             shootTimer -= tpf;
         }
     }
 
-    private void setFrame(int frameX, int frameY) {
+    /*private void setFrame(int frameX, int frameY) {
         float frameWidth = 1f / numFramesX;
         float frameHeight = 1f / numFramesY;
 
@@ -157,7 +171,7 @@ public class Player {
             u2, vTop
         });
         quad.updateBound();
-    }
+    }*/
 
     public void shoot(java.util.List<Bullet> bullets, AssetManager assetManager) {
         if (shootTimer <= 0f) {
