@@ -10,6 +10,10 @@ import com.jme3.scene.shape.Quad;
 import com.jme3.texture.Texture;
 import com.jme3.math.Vector3f;
 
+/**
+ *
+ * @author Luca Crivelli
+ */
 public class Player {
 
     private final Node node;         // Nodo padre per pivot e flip
@@ -29,7 +33,7 @@ public class Player {
 
     // Movimento
     private float speed = 300f;
-    private float jumpForce = 650f;
+    private float jumpForce = 700f;
     private float gravity = -1000f;
     private float velocityY = 0f;
     private boolean left, right, jumping;
@@ -47,8 +51,8 @@ public class Player {
     public Player(AssetManager assetManager, float screenWidth, float screenHeight) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
-        this.groundY = 200f;
-        this.playerSize = 218f;
+        this.groundY = 190f;
+        this.playerSize = 242f;
 
         // === Carica le texture ===
         textureRight = assetManager.loadTexture("Textures/character_right.png");
@@ -65,7 +69,7 @@ public class Player {
         material.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
 
         // === Crea la geometria ===
-        quad = new Quad(300, 300, false);
+        quad = new Quad(360, 340, false);
         geometry = new Geometry("Player", quad);
         geometry.setMaterial(material);
 
@@ -78,7 +82,7 @@ public class Player {
         node.setLocalTranslation(screenWidth / 2f, groundY, 0);
     }
 
-    public Node getGeometry() {
+    public Node getNode() {
         return node;
     }
 
@@ -183,7 +187,23 @@ public class Player {
 
             Bullet bullet = new Bullet(assetManager, bulletPos, direction);
             bullets.add(bullet);
-            shootTimer = 0.5f; // mezzo secondo cooldown
+            shootTimer = 0.4f; // mezzo secondo cooldown
         }
+    }
+
+    // Imposta la posizione del nodo del player mantenendo lo z
+    public void setPosition(float x, float y) {
+        node.setLocalTranslation(x, y, node.getLocalTranslation().z);
+    }
+
+    // Restituisce la posizione attuale del nodo
+    public Vector3f getPosition() {
+        return node.getLocalTranslation().clone();
+    }
+
+
+    // restituisce metà larghezza del quad (utile per rilevare collisione con i bordi)
+    public float getHalfWidth() {
+        return quad.getWidth() / 4f;
     }
 }
