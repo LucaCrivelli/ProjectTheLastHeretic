@@ -26,6 +26,7 @@ public class Main extends SimpleApplication {
     private List<Room> rooms = new ArrayList<>();
     private int currentRoomIndex = 0;
     private Picture currentBackground = null;
+    private HealthBar healthBar;
 
     public static void main(String[] args) {
         Main app = new Main();
@@ -45,35 +46,39 @@ public class Main extends SimpleApplication {
         float sw = settings.getWidth();
         float sh = settings.getHeight();
 
-        // Crea stanze: aggiungi quante vuoi con sfondi diversi
         rooms.add(new Room(assetManager, "Textures/sfondo0.png", sw, sh, "Sala1"));
         rooms.add(new Room(assetManager, "Textures/sfondo1.png", sw, sh, "Sala2"));
         rooms.add(new Room(assetManager, "Textures/sfondo2.png", sw, sh, "Sala3"));
         rooms.add(new Room(assetManager, "Textures/sfondo3.png", sw, sh, "Sala4"));
-        
 
         // PLAYER
         player = new Player(assetManager, sw, sh);
         guiNode.attachChild(player.getNode());
 
+        // Barra della vita
+        float heartWidth = 92f;
+        float heartHeight = 92f;
+        float startX = 20f;
+        float startY = settings.getHeight() - heartHeight - 20f;
+
+        healthBar = new HealthBar(assetManager, 5, startX, startY, heartWidth, heartHeight);
+        healthBar.attachToNode(guiNode, 0.5f); // attacca sopra lo sfondo
+
         // Attacca il background della prima stanza
         loadRoom(0);
-        
+
         // ENEMY
-        Enemy e1 = new Enemy(assetManager, 100f, 120f, settings.getWidth(), "Textures/enemy_right.png", "Textures/enemy_left.png",40);
+        Enemy e1 = new Enemy(assetManager, 100f, 120f, settings.getWidth(), "Textures/enemy_right.png", "Textures/enemy_left.png", 40);
         e1.setPatrolBounds(20f, settings.getWidth() - 20f);
         rooms.get(1).addEnemy(e1);
 
-        Enemy e2 = new Enemy(assetManager, 400f, 120f, settings.getWidth(), "Textures/enemy_right.png", "Textures/enemy_left.png",60);
+        Enemy e2 = new Enemy(assetManager, 400f, 120f, settings.getWidth(), "Textures/enemy_right.png", "Textures/enemy_left.png", 60);
         e2.setPatrolBounds(20f, settings.getWidth() - 20f);
         rooms.get(2).addEnemy(e2);
 
-        // stanza 2 (index 1) non ha nemici — ok se vuoi stanze senza nemici
-
-        Enemy e3 = new Enemy(assetManager, 200f, 120f, settings.getWidth(), "Textures/enemy_right.png", "Textures/enemy_left.png",90);
+        Enemy e3 = new Enemy(assetManager, 200f, 120f, settings.getWidth(), "Textures/enemy_right.png", "Textures/enemy_left.png", 90);
         e3.setPatrolBounds(20f, settings.getWidth() - 20f);
         rooms.get(2).addEnemy(e3);
-
 
         // INPUT
         inputManager.addMapping("Left", new KeyTrigger(KeyInput.KEY_A));
@@ -85,44 +90,41 @@ public class Main extends SimpleApplication {
         inputManager.addListener(actionListener, "Shoot");
     }
 
-    /**
-     * Attacca il background della stanza con indice idx.
-     * Rimuove il background precedente dal guiNode prima di attaccare il nuovo.
-     */
     private void loadRoom(int idx) {
         if (idx < 0 || idx >= rooms.size()) return;
-    
-        if (currentBackground != null && currentBackground.getParent() != null) {
-            guiNode.detachChild(currentBackground);
+
+        // --- Rimuovi tutti i proiettili attivi ---
+        for (Bullet b : bullets) {
+            if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
         }
-        // inoltre stacca eventuali nemici del vecchio room (pulizia)
-        if (player != null) {
-            // non stacchiamo il player
-        }
-        // stacca tutte le geometrie dei nemici correnti (se attaccate)
+        bullets.clear();
+
+        // --- Rimuovi background precedente ---
+        if (currentBackground != null && currentBackground.getParent() != null) guiNode.detachChild(currentBackground);
+
+        // --- Rimuovi geometrie nemici ---
         for (Room r : rooms) {
             for (Enemy en : r.getEnemies()) {
-                if (en.getGeometry().getParent() != null) {
-                    guiNode.detachChild(en.getGeometry());
-                }
+                if (en.getGeometry().getParent() != null) guiNode.detachChild(en.getGeometry());
             }
         }
-    
+
         currentRoomIndex = idx;
         currentBackground = rooms.get(idx).getBackground();
         currentBackground.setLocalTranslation(0, 0, 0f);
         guiNode.attachChild(currentBackground);
-    
-        // ri-attacca il player (se non già attaccato) e poni z
-        if (player != null && player.getNode().getParent() == null) {
-            guiNode.attachChild(player.getNode());
-        }
+
+        // Ri-attacca la barra della vita
+        if (healthBar != null) healthBar.refresh(player);
+
+        // Ri-attacca il player
+        if (player != null && player.getNode().getParent() == null) guiNode.attachChild(player.getNode());
         if (player != null) {
             Vector3f ppos = player.getNode().getLocalTranslation();
             player.getNode().setLocalTranslation(ppos.x, ppos.y, 0.1f);
         }
-    
-        // attacca nemici della stanza corrente
+
+        // Attacca nemici della stanza corrente
         for (Enemy en : rooms.get(idx).getEnemies()) {
             if (en.getGeometry().getParent() == null) {
                 guiNode.attachChild(en.getGeometry());
@@ -130,63 +132,154 @@ public class Main extends SimpleApplication {
                 en.getGeometry().setLocalTranslation(ep.x, ep.y, 0.15f);
             }
         }
-    }    
+    }
 
     @Override
     public void simpleUpdate(float tpf) {
+        // Aggiorna il player (gestisce movimento, gravity, invincibilità, ecc.)
         player.update(tpf);
 
+        // Parametri finestra / player
         float screenWidth = settings.getWidth();
-        float px = player.getPosition().x;
-        float py = player.getPosition().y;
-        float halfW = player.getHalfWidth();
+        Vector3f pPos = player.getPosition();
+        float pHalfW = player.getHalfWidth();
+        float pHalfH = player.getHalfHeight();
 
         // --- Blocchi ai bordi prima e ultima stanza ---
-        if (currentRoomIndex == 0 && px - halfW < 0) {
-            player.setPosition(halfW, py);
-            px = halfW;
+        if (currentRoomIndex == 0 && pPos.x - pHalfW < 0) {
+            player.setPosition(pHalfW, pPos.y);
+            pPos = player.getPosition();
         }
-        if (currentRoomIndex == rooms.size() - 1 && px + halfW > screenWidth) {
-            player.setPosition(screenWidth - halfW, py);
-            px = screenWidth - halfW;
+        if (currentRoomIndex == rooms.size() - 1 && pPos.x + pHalfW > screenWidth) {
+            player.setPosition(screenWidth - pHalfW, pPos.y);
+            pPos = player.getPosition();
         }
 
-        float offset = 5f; // distanza dal bordo, puoi cambiare il valore
+        float offset = 5f; // distanza dal bordo per riposizionare il player nelle nuove stanze
 
         // --- Cambio stanza verso destra ---
-        if (px - halfW > screenWidth && currentRoomIndex < rooms.size() - 1) {
+        if (pPos.x - pHalfW > screenWidth && currentRoomIndex < rooms.size() - 1) {
             loadRoom(currentRoomIndex + 1);
-            player.setPosition(0 + offset, py); // bordo sinistro nuova stanza
+            player.setPosition(0 + offset, pPos.y);
+            pPos = player.getPosition();
         }
 
         // --- Cambio stanza verso sinistra ---
-        if (px + halfW < 0 && currentRoomIndex > 0) {
+        if (pPos.x + pHalfW < 0 && currentRoomIndex > 0) {
             loadRoom(currentRoomIndex - 1);
-            player.setPosition(screenWidth - offset, py); // bordo destro nuova stanza
+            player.setPosition(screenWidth - offset, pPos.y);
+            pPos = player.getPosition();
         }
 
-        // --- Aggiornamento proiettili ---
-        Iterator<Bullet> it = bullets.iterator();
-        while (it.hasNext()) {
-            Bullet b = it.next();
+        // --- PROIETTILI (bullet -> enemy)
+        // -----------------------
+        Iterator<Bullet> bit = bullets.iterator();
+        List<Enemy> deadEnemies = new ArrayList<>(); // nemici da rimuovere alla fine
+
+        while (bit.hasNext()) {
+            Bullet b = bit.next();
             b.update(tpf);
-            float bx = b.getGeometry().getLocalTranslation().x;
-            if (!b.isActive() || bx < 0 || bx > screenWidth) {
-                if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
-                it.remove();
-            } else if (b.getGeometry().getParent() == null) {
-                guiNode.attachChild(b.getGeometry());
+
+            // posizione del proiettile (la localTranslation come punto di riferimento)
+            Vector3f bPos = b.getGeometry().getLocalTranslation().clone();
+
+            boolean removedByCollision = false;
+
+            // controlla collisione con ciascun nemico nella stanza corrente
+            for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
+                // centro e half-size reali del nemico
+                Vector3f ePosRaw = en.getGeometry().getLocalTranslation().clone();
+                float eHalfW_real = en.getHalfWidth();
+                float eHalfH_real = en.getHalfHeight();
+                Vector3f eCenter = ePosRaw.add(eHalfW_real, eHalfH_real, 0f);
+
+                // calcola AABB del nemico 
+                float eLeft = eCenter.x - eHalfW_real;
+                float eRight = eCenter.x + eHalfW_real;
+                float eBottom = eCenter.y - eHalfH_real;
+                float eTop = eCenter.y + eHalfH_real;
+
+                //il punto del proiettile è dentro l'AABB del nemico?
+                if (bPos.x >= eLeft && bPos.x <= eRight && bPos.y >= eBottom && bPos.y <= eTop) {
+                    // collisione: rimuove il proiettile
+                    if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
+                    bit.remove();
+                    removedByCollision = true;
+
+                    // applica danno al nemico
+                    boolean died = en.takeDamageFromBullet();
+                    if (died) {
+                        // rimuove graficamente il nemico e segnala per rimozione logica
+                        if (en.getGeometry().getParent() != null) guiNode.detachChild(en.getGeometry());
+                        deadEnemies.add(en);
+                    } else {
+                        // opzionale: effetto hit (flash, suono) — puoi aggiungerlo qui
+                    }
+
+                    break; // proiettile consumato -> esce dal loop dei nemici
+                }
+            }
+
+            // se il proiettile non è stato rimosso da collisione, controlla limiti schermo / stato
+            if (!removedByCollision) {
+                float bx = b.getGeometry().getLocalTranslation().x;
+                if (!b.isActive() || bx < 0 || bx > screenWidth) {
+                    if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
+                    bit.remove();
+                } else if (b.getGeometry().getParent() == null) {
+                    guiNode.attachChild(b.getGeometry());
+                }
             }
         }
 
-        // aggiorna nemici solo della stanza corrente
-        for (Enemy en : rooms.get(currentRoomIndex).getEnemies()) {
+        // Rimuovi dalla lista i nemici morti (pulizia logica)
+        if (!deadEnemies.isEmpty()) {
+            List<Enemy> roomEnemies = rooms.get(currentRoomIndex).getEnemies();
+            roomEnemies.removeAll(deadEnemies);
+            // qui puoi aggiungere ulteriori azioni alla morte (drop, punti, ecc.)
+        }
+
+        // -----------------------
+        // --- NEMICI (update + enemy -> player collision)
+        // ricalcola posizione player/half per sicurezza (potrebbe essere cambiata)
+        pPos = player.getPosition();
+        pHalfW = player.getHitHalfWidth();   // usa hitbox ridotta per collisione con nemici
+        pHalfH = player.getHitHalfHeight();
+
+        for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
+            // aggiorna comportamento nemico
             en.update(tpf, player.getPosition());
-            // la geometria è già attaccata in loadRoom; controllo parent per sicurezza
+
+            // Assicuriamoci che la geometry sia attaccata al guiNode (se non lo è già)
             if (en.getGeometry().getParent() == null) {
                 guiNode.attachChild(en.getGeometry());
                 Vector3f ep = en.getGeometry().getLocalTranslation();
                 en.getGeometry().setLocalTranslation(ep.x, ep.y, 0.15f);
+            }
+
+            // ---- Collisione AABB tra enemy e player (usando hitbox scalate) ----
+            // centro del nemico (robusto sia che geometry sia bottom-left o centrata)
+            Vector3f ePosRaw = en.getGeometry().getLocalTranslation().clone();
+            float eHalfW_hit = en.getHitHalfWidth();
+            float eHalfH_hit = en.getHitHalfHeight();
+            float eHalfW_center = en.getHalfWidth();
+            float eHalfH_center = en.getHalfHeight();
+            Vector3f eCenter = ePosRaw.add(eHalfW_center, eHalfH_center, 0f);
+
+            // distanza centro-centro
+            float dx = Math.abs(eCenter.x - pPos.x);
+            float dy = Math.abs(eCenter.y - pPos.y);
+
+            boolean collisionX = dx <= (eHalfW_hit + pHalfW);
+            boolean collisionY = dy <= (eHalfH_hit + pHalfH);
+
+            if (collisionX && collisionY) {
+                // il player subisce danno solo se il timer di invincibilità è scaduto
+                if (player.takeDamage()) {
+                    // aggiorna la barra della vita solo se il danno è effettivo
+                    if (healthBar != null) healthBar.loseLife();
+                    // opzionale: effetto invincibilità visivo (flash) qui
+                }
             }
         }
     }
@@ -201,10 +294,7 @@ public class Main extends SimpleApplication {
             if (name.equals("Left")) player.setLeft(isPressed);
             if (name.equals("Right")) player.setRight(isPressed);
             if (name.equals("Jump") && isPressed) player.jump();
-
-            if (name.equals("Shoot") && isPressed) {
-                player.shoot(bullets, assetManager);
-            }
+            if (name.equals("Shoot") && isPressed) player.shoot(bullets, assetManager);
         }
     };
 }

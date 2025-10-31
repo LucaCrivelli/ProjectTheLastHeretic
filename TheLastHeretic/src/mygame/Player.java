@@ -48,6 +48,18 @@ public class Player {
     // cooldown sparo
     private float shootTimer = 0f;
 
+    // numero di vite del player
+    private int maxLives = 5;
+    private int currentLives = 5;
+
+    // timer di invincibilità
+    private float invincibilityTime = 2.0f; // 2 secondo di invincibilità
+    private float invincibilityTimer = 0f;
+
+    // HITBOX SCALE (0.0 - 1.0)
+    private float hitboxScale = 0.5f;
+
+
     public Player(AssetManager assetManager, float screenWidth, float screenHeight) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
@@ -86,8 +98,12 @@ public class Player {
         return node;
     }
 
-    public void setLeft(boolean left) { this.left = left; }
-    public void setRight(boolean right) { this.right = right; }
+    public void setLeft(boolean left) {
+        this.left = left; 
+    }
+    public void setRight(boolean right) {
+        this.right = right; 
+    }
 
     public void jump() {
         if (!jumping) {
@@ -103,14 +119,17 @@ public class Player {
         if (left) pos.x -= speed * tpf;
         if (right) pos.x += speed * tpf;
 
-        if (left && !facingLeft) {
+        if (left && !right && !facingLeft) {
             facingLeft = true;
             material.setTexture("ColorMap", textureLeft);
-        } else if (right && facingLeft) {
+        } else if (right && !left && facingLeft) {
             facingLeft = false;
             material.setTexture("ColorMap", textureRight);
         }
 
+        if (invincibilityTimer > 0f) {
+            invincibilityTimer -= tpf;
+        }        
         // Flip orizzontale con scala negativa
         /*if (left && !facingLeft) {
             facingLeft = true;
@@ -202,8 +221,47 @@ public class Player {
     }
 
 
-    // restituisce metà larghezza del quad (utile per rilevare collisione con i bordi)
+    // restituisce metà larghezza reale del quad (correzione)
     public float getHalfWidth() {
-        return quad.getWidth() / 4f;
+        return quad.getWidth() / 2f;
     }
+
+    // restituisce metà altezza reale del quad
+    public float getHalfHeight() {
+        return quad.getHeight() / 2f;
+    }
+
+    // hitbox ridotta (da usare per collisioni)
+    public float getHitHalfWidth() {
+        return getHalfWidth() * hitboxScale;
+    }
+
+    public float getHitHalfHeight() {
+        return getHalfHeight() * hitboxScale;
+    }
+
+    // setter per tuning runtime
+    public void setHitboxScale(float s) {
+        this.hitboxScale = s;
+    }
+
+
+    // Chiamato quando il player subisce danno
+    public boolean takeDamage() {
+        if (invincibilityTimer <= 0f && currentLives > 0) {
+            currentLives--;
+            invincibilityTimer = invincibilityTime;
+            return true; // indica che il player ha subito danno
+        }
+        return false; // il player è ancora invincibile
+    }
+
+    public int getCurrentLives() {
+        return currentLives;
+    }
+
+    public int getMaxLives() {
+        return maxLives;
+    }
+
 }

@@ -29,8 +29,15 @@ public class Enemy {
     private float minX = 0f;
     private float maxX = 800f;         // valore di default, sovrascrivibile
     private float y = 180f;
+    
+    private float stopDistance = 24f;
 
     private float aggroRange = 200f;   // se il player è entro questo range in x, insegue
+    
+    // hitbox scale per il nemico (puoi tararlo per tipi diversi)
+    private float hitboxScale = 0.4f;
+    
+    private int hp = 4;
 
     public Enemy(AssetManager assetManager, float startX, float startY, float screenWidth, String texRightPath, String texLeftPath, float speed) {
         
@@ -81,28 +88,85 @@ public class Enemy {
         active = v;
     }
 
+    // ritorna metà larghezza (assicurati che quad sia accessibile)
+    public float getHalfWidth() {
+        return quad.getWidth() / 2f;
+    }
+
+    public float getHalfHeight() {
+        return quad.getHeight() / 2f;
+    }
+
+    public float getHitHalfWidth() {
+        return getHalfWidth() * hitboxScale;
+    }
+
+    public float getHitHalfHeight() {
+        return getHalfHeight() * hitboxScale;
+    }
+
+    public void setHitboxScale(float s) {
+        this.hitboxScale = s;
+    }
+
+    /** Restituisce gli HP attuali (opzionale, utile per debug) */
+    public int getHp() {
+        return hp;
+    }
+
+    /**
+     * Il nemico subisce un colpo. Ritorna true se il colpo ha ucciso il nemico.
+     */
+    public boolean takeDamageFromBullet() {
+        hp--;
+        if (hp <= 0) {
+            // eventuale logica di "morte" (suono/animazione) qui
+            return true;
+        }
+        return false;
+    }
+
+
     // aggiornamento: chase se player dentro aggroRange (solo X considerato),
     // altrimenti pattuglia tra minX e maxX
     public void update(float tpf, Vector3f playerPos) {
         if (!active) return;
-
+    
         Vector3f pos = geom.getLocalTranslation();
-        float px = playerPos.x;
         float ex = pos.x;
-
-        boolean chasing = Math.abs(px - ex) <= aggroRange;
-
-        if (chasing) {
-            // insegui il player (solo orizzontalmente)
-            if (px > ex) {
+        float enemyHalf = quad.getWidth() / 2f;
+        float exCenter = ex + enemyHalf;
+        float pxCenter = playerPos.x;
+    
+        float dx = pxCenter - exCenter;
+        float absDx = Math.abs(dx);
+    
+        float aggroRangeEffective = aggroRange;
+        float speedChase = speed * 1.2f;
+        float stopDistance = 114f;
+    
+        // se siamo già dentro la zona di stop, fermati e non inseguire
+        boolean inStopZone = absDx <= stopDistance;
+    
+        if (absDx <= aggroRangeEffective && !inStopZone) {
+            float targetCenter;
+            if (dx > 0) {
+                targetCenter = pxCenter - stopDistance;
                 direction = 1;
-                ex += speed * 1.2f * tpf; // magari più veloce quando insegue
-            } else if (px < ex) {
+            } else {
+                targetCenter = pxCenter + stopDistance;
                 direction = -1;
-                ex -= speed * 1.2f * tpf;
             }
-        } else {
-            // pattuglia: avanti e indietro tra minX e maxX
+    
+            float move = speedChase * tpf;
+    
+            if (dx > 0) exCenter = Math.min(exCenter + move, targetCenter);
+            else exCenter = Math.max(exCenter - move, targetCenter);
+    
+            ex = exCenter - enemyHalf;
+        } 
+        else if (absDx > aggroRangeEffective) {
+            // pattuglia normale
             ex += direction * speed * tpf;
             if (ex < minX) {
                 ex = minX;
@@ -112,17 +176,12 @@ public class Enemy {
                 direction = -1;
             }
         }
-
-        // applica la texture in base alla direzione
-        if (direction == -1){
-            material.setTexture("ColorMap", texLeft);
-        }
-        else {
-            material.setTexture("ColorMap", texRight);
-        }
-
-        // imposta la posizione (mantenendo z)
-        geom.setLocalTranslation(ex, y, geom.getLocalTranslation().z);
+    
+        // aggiorna texture
+        if (direction == -1) material.setTexture("ColorMap", texLeft);
+        else material.setTexture("ColorMap", texRight);
+    
+        geom.setLocalTranslation(ex, y, pos.z);
     }
 }
 
