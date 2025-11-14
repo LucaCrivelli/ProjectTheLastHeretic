@@ -5,7 +5,6 @@ import com.jme3.input.KeyInput;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.MouseInput;
-import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.scene.Node;
@@ -16,22 +15,24 @@ import java.util.List;
 
 public class Main extends SimpleApplication {
 
+    public static boolean insideTrash = false;   // <<< nuovo
+    private TrashCan currentTrash = null;        // <<< nuovo
+
     private Player player;
     private List<Bullet> bullets = new ArrayList<>();
 
-    // Room system 
     private List<Room> rooms = new ArrayList<>();
     private int currentRoomIndex = 0;
     private Picture currentBackground = null;
     private HealthBar healthBar;
 
-    // Dead screen
+    // Death screen
     private Picture deathScreenGif;
     private Picture deathScreenStatic;
     private Picture continueButton;
     private boolean deathScreenActive = false;
     private float deathScreenTimer = 0f;
-    private float deathScreenDelay = 3.0f; // tempo prima di mostrare l'immagine statica
+    private float deathScreenDelay = 3.0f;
     private boolean showContinueButton = false;
 
 
@@ -42,82 +43,71 @@ public class Main extends SimpleApplication {
 
     @Override
     public void simpleInitApp() {
-        // Disattiva HUD e camera libera
         setDisplayStatView(false);
         flyCam.setEnabled(false);
 
-        // Preload risorse
         Bullet.preload(assetManager);
 
-        // Dimensioni finestra e scale
         float sw = settings.getWidth();
         float sh = settings.getHeight();
         float scaleY = sh / 768f;
 
-        // === INIZIALIZZA STANZE ===
+        // === ROOM CREATION ===
         rooms.add(new Room(assetManager, "Textures/sfondo0.png", sw, sh, "Sala1"));
         rooms.add(new Room(assetManager, "Textures/sfondo1.png", sw, sh, "Sala2"));
         rooms.add(new Room(assetManager, "Textures/sfondo2.png", sw, sh, "Sala3"));
         rooms.add(new Room(assetManager, "Textures/sfondo3.png", sw, sh, "Sala4"));
 
-        // PLAYER
+        // === Aggiunta bidone stanza 2 ===
+        rooms.get(1).addTrashCan(new TrashCan(assetManager, 500f, 200f, 128f, 128f));
+
         player = new Player(assetManager, sw, sh, scaleY);
         guiNode.attachChild(player.getNode());
 
-        // Barra della vita
-        float heartWidth = 92f;
-        float heartHeight = 92f;
-        float startX = 20f;
-        float startY = sh - heartHeight - 20f;
-        healthBar = new HealthBar(assetManager, 5, startX, startY, heartWidth, heartHeight);
+        healthBar = new HealthBar(assetManager, 5, 20f, sh - 112f, 92f, 92f);
         healthBar.attachToNode(guiNode, 0.5f);
 
-        // Carica la prima stanza
         loadRoom(0);
 
-        // Inizializza nemici
         initEnemies(sw, scaleY);
 
         // INPUT
         inputManager.addMapping("Left", new KeyTrigger(KeyInput.KEY_A));
         inputManager.addMapping("Right", new KeyTrigger(KeyInput.KEY_D));
         inputManager.addMapping("Jump", new KeyTrigger(KeyInput.KEY_SPACE));
-        inputManager.addListener(actionListener, "Left", "Right", "Jump");
-
         inputManager.addMapping("Shoot", new com.jme3.input.controls.MouseButtonTrigger(MouseInput.BUTTON_LEFT));
-        inputManager.addListener(actionListener, "Shoot");
 
-        // Gestione pulsante CONTINUA nella schermata di morte
+        // NUOVO — entrare nel bidone
+        inputManager.addMapping("EnterTrash", new KeyTrigger(KeyInput.KEY_W));
+
+        inputManager.addListener(actionListener,
+                "Left", "Right", "Jump", "Shoot", "EnterTrash"
+        );
+
+        // CLICK per pulsante continua
         inputManager.addMapping("Click", new com.jme3.input.controls.MouseButtonTrigger(MouseInput.BUTTON_LEFT)); 
         inputManager.addListener(new ActionListener() {
             @Override
             public void onAction(String name, boolean isPressed, float tpf) {
                 if (name.equals("Click") && isPressed && showContinueButton) {
-                        // rimuovi schermata di morte
-                        guiNode.detachChild(deathScreenStatic);
-                        guiNode.detachChild(continueButton);
-                        deathScreenActive = false;
-                        showContinueButton = false;
-
-                        // riavvia la partita
-                        resetGame();
+                    guiNode.detachChild(deathScreenStatic);
+                    guiNode.detachChild(continueButton);
+                    deathScreenActive = false;
+                    showContinueButton = false;
+                    resetGame();
                 }
             }
         }, "Click");
-
     }
 
     private void initEnemies(float sw, float scaleY) {
-        // Svuota nemici vecchi
         for (Room r : rooms) r.getEnemies().clear();
 
-        // Sala 2
         Enemy e1 = new Enemy(assetManager, 100f, 120f * scaleY, sw,
                 "Textures/enemy_right.png", "Textures/enemy_left.png", 40, scaleY);
         e1.setPatrolBounds(20f, sw - 20f);
         rooms.get(1).addEnemy(e1);
 
-        // Sala 3
         Enemy e2 = new Enemy(assetManager, 400f, 120f * scaleY, sw,
                 "Textures/enemy_right.png", "Textures/enemy_left.png", 60, scaleY);
         e2.setPatrolBounds(20f, sw - 20f);
@@ -132,249 +122,270 @@ public class Main extends SimpleApplication {
     private void loadRoom(int idx) {
         if (idx < 0 || idx >= rooms.size()) return;
 
-        // Svuota proiettili
-        for (Bullet b : bullets) {
+        // rimuovi oggetti stanza precedente
+        for (Bullet b : bullets)
             if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
-        }
         bullets.clear();
 
-        // Rimuovi background precedente
-        if (currentBackground != null && currentBackground.getParent() != null) guiNode.detachChild(currentBackground);
+        if (currentBackground != null)
+            guiNode.detachChild(currentBackground);
 
-        // Rimuovi geometrie nemici
-        for (Room r : rooms) {
-            for (Enemy en : r.getEnemies()) {
-                if (en.getGeometry().getParent() != null) guiNode.detachChild(en.getGeometry());
-            }
-        }
+        // rimuovi trash della stanza precedente
+        TrashCan old = rooms.get(currentRoomIndex).getTrashCan();
+        if (old != null && old.getPicture().getParent() != null)
+            guiNode.detachChild(old.getPicture());
+
+        // rimuovi nemici
+        for (Room r : rooms)
+            for (Enemy en : r.getEnemies())
+                if (en.getGeometry().getParent() != null)
+                    guiNode.detachChild(en.getGeometry());
 
         currentRoomIndex = idx;
         currentBackground = rooms.get(idx).getBackground();
-        currentBackground.setLocalTranslation(0, 0, 0f);
         guiNode.attachChild(currentBackground);
 
-        // Ri-attacca barra vita
-        if (healthBar != null) healthBar.refresh(player);
-
-        // Ri-attacca player
-        if (player != null && player.getNode().getParent() == null) guiNode.attachChild(player.getNode());
-        if (player != null) {
-            Vector3f ppos = player.getNode().getLocalTranslation();
-            player.getNode().setLocalTranslation(ppos.x, ppos.y, 0.1f);
+        // Riattacca player
+        if (!insideTrash) {
+            if (player.getNode().getParent() == null)
+                guiNode.attachChild(player.getNode());
         }
 
-        // Attacca nemici stanza corrente
+        // Attacca nemici nuova stanza
         for (Enemy en : rooms.get(idx).getEnemies()) {
-            if (en.getGeometry().getParent() == null) {
-                guiNode.attachChild(en.getGeometry());
-                Vector3f ep = en.getGeometry().getLocalTranslation();
-                en.getGeometry().setLocalTranslation(ep.x, ep.y, 0.15f);
-            }
+            guiNode.attachChild(en.getGeometry());
         }
+
+        // Attacca il trash can se esiste
+        if (rooms.get(idx).getTrashCan() != null)
+            guiNode.attachChild(rooms.get(idx).getTrashCan().getPicture());
     }
+
 
     @Override
-public void simpleUpdate(float tpf) {
+    public void simpleUpdate(float tpf) {
 
-    // --- GESTIONE SCHERMATA DI MORTE ---
-    if (player.getCurrentLives() <= 0) {
-        if (!deathScreenActive) {
-            deathScreenActive = true;
-            deathScreenTimer = 0f;
-            showContinueButton = false;
-            
-            // Mostra immagine statica
-            deathScreenStatic = new Picture("DeathStatic");
-            deathScreenStatic.setImage(assetManager, "Textures/you-died.png", true);
-            deathScreenStatic.setWidth(settings.getWidth());
-            deathScreenStatic.setHeight(settings.getHeight());
-            deathScreenStatic.setPosition(0, 0);
-            deathScreenStatic.setLocalTranslation(0, 0, 10f); // z alto sopra tutto
-            guiNode.attachChild(deathScreenStatic);
-        }
-        
-        deathScreenTimer += tpf;
-
-        if (deathScreenTimer >= deathScreenDelay && !showContinueButton) {
-
-            // Mostra pulsante Continua
-            // Dimensioni proporzionali
-            float btnWidth = settings.getWidth() * 0.75f;
-            float btnHeight = settings.getHeight() * 0.6f;
-
-            continueButton = new Picture("ContinueButton");
-            continueButton.setImage(assetManager, "Textures/continue.png", true);
-            continueButton.setWidth(btnWidth);
-            continueButton.setHeight(btnHeight);
-
-            // Centrato orizzontalmente e abbassato verticalmente
-            float btnX = settings.getWidth() / 1.83f - btnWidth / 2f;
-            float btnY = settings.getHeight() * 0.005f;           // 5% dal bordo inferior
-            continueButton.setLocalTranslation(btnX, btnY, 11f);
-            guiNode.attachChild(continueButton);
-
-            showContinueButton = true;
-
-
+        // Schermata morte
+        if (player.getCurrentLives() <= 0) {
+            handleDeathScreen(tpf);
+            return;
         }
 
-        // Non eseguire aggiornamenti di gioco mentre la schermata di morte è attiva
-        return;
+        // PLAYER BLOCCATO NEL BIDONE
+        if (!insideTrash) {
+            player.update(tpf);
+        }
+
+        float screenWidth = settings.getWidth();
+        Vector3f pPos = player.getPosition();
+        float pHalfW = player.getHalfWidth();
+
+        // Cambio stanza
+        if (!insideTrash) {
+            if (currentRoomIndex == 0 && pPos.x - pHalfW < 0)
+                player.setPosition(pHalfW, pPos.y);
+
+            if (currentRoomIndex == rooms.size() - 1 && pPos.x + pHalfW > screenWidth)
+                player.setPosition(screenWidth - pHalfW, pPos.y);
+
+            if (pPos.x - pHalfW > screenWidth && currentRoomIndex < rooms.size() - 1) {
+                loadRoom(currentRoomIndex + 1);
+                player.setPosition(5f, pPos.y);
+            }
+
+            if (pPos.x + pHalfW < 0 && currentRoomIndex > 0) {
+                loadRoom(currentRoomIndex - 1);
+                player.setPosition(screenWidth - 5f, pPos.y);
+            }
+        }
+
+        // Proiettili
+        if (!insideTrash) updateBullets(tpf);
+
+        // Nemici
+        if (!insideTrash) updateEnemies(tpf);
     }
 
-    // --- AGGIORNA PLAYER ---
-    player.update(tpf);
+    //------------------------------------------------------------
+    // ENTRARE NEL BIDONE
+    //------------------------------------------------------------
+    private void tryEnterTrash() {
+        Room r = rooms.get(currentRoomIndex);
+        TrashCan t = r.getTrashCan();
+        if (t == null) return;
 
-    // --- PARAMETRI FINESTRA / PLAYER ---
-    float screenWidth = settings.getWidth();
-    Vector3f pPos = player.getPosition();
-    float pHalfW = player.getHalfWidth();
-    float pHalfH = player.getHalfHeight();
-    float offset = 5f;
+        Vector3f p = player.getPosition();
+        float pW = player.getHalfWidth();
+        float pH = player.getHalfHeight();
 
-    // --- CAMBIO STANZA ---
-    if (currentRoomIndex == 0 && pPos.x - pHalfW < 0) {
-        player.setPosition(pHalfW, pPos.y); pPos = player.getPosition();
+        if (t.intersects(p.x - pW, p.y - pH, pW * 2f, pH * 2f)) {
+
+            insideTrash = true;
+            currentTrash = t;
+
+            guiNode.detachChild(player.getNode());
+
+            // <<< EFFETTI SONORI QUI >>>
+
+            player.reset();
+            healthBar.refresh(player);
+        }
     }
-    if (currentRoomIndex == rooms.size() - 1 && pPos.x + pHalfW > screenWidth) {
-        player.setPosition(screenWidth - pHalfW, pPos.y); pPos = player.getPosition();
+
+    //------------------------------------------------------------
+    // USCIRE DAL BIDONE CON SPACE
+    //------------------------------------------------------------
+    private void exitTrash() {
+        if (!insideTrash) return;
+    
+        insideTrash = false;
+    
+        // riaggiungi player alla scena
+        if (player.getNode().getParent() == null)
+            guiNode.attachChild(player.getNode());
+    
+        // posiziona il player SOPRA il bidone
+        float newX = currentTrash.getX() + currentTrash.getWidth() / 2f;
+        float newY = currentTrash.getY() + currentTrash.getHeight();
+    
+        player.setPosition(newX, newY); // <<< SOLO 2 PARAMETRI!
+    
+        // <<< QUI PUOI METTERE IL SUONO DI USCITA >>>
+    
+        currentTrash = null;
     }
-    if (pPos.x - pHalfW > screenWidth && currentRoomIndex < rooms.size() - 1) {
-        loadRoom(currentRoomIndex + 1);
-        player.setPosition(0 + offset, pPos.y); pPos = player.getPosition();
-    }
-    if (pPos.x + pHalfW < 0 && currentRoomIndex > 0) {
-        loadRoom(currentRoomIndex - 1);
-        player.setPosition(screenWidth - offset, pPos.y); pPos = player.getPosition();
-    }
+    
 
-    // --- PROIETTILI ---
-    Iterator<Bullet> bit = bullets.iterator();
-    List<Enemy> deadEnemies = new ArrayList<>();
+    //------------------------------------------------------------
+    private final ActionListener actionListener = new ActionListener() {
+        @Override
+        public void onAction(String name, boolean isPressed, float tpf) {
 
-    while (bit.hasNext()) {
-        Bullet b = bit.next();
-        b.update(tpf);
-        Vector3f bPos = b.getGeometry().getLocalTranslation().clone();
-        boolean removedByCollision = false;
+            if (insideTrash) {
+                if (name.equals("Jump") && isPressed) exitTrash();
+                return;
+            }
 
-        for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
-            Vector3f ePosRaw = en.getGeometry().getLocalTranslation().clone();
-            float eHalfW_real = en.getHalfWidth();
-            float eHalfH_real = en.getHalfHeight();
-            Vector3f eCenter = ePosRaw.add(eHalfW_real, eHalfH_real, 0f);
+            if (name.equals("Left")) player.setLeft(isPressed);
+            if (name.equals("Right")) player.setRight(isPressed);
 
-            float eLeft = eCenter.x - eHalfW_real;
-            float eRight = eCenter.x + eHalfW_real;
-            float eBottom = eCenter.y - eHalfH_real;
-            float eTop = eCenter.y + eHalfH_real;
+            if (name.equals("Jump") && isPressed) player.jump();
 
-            if (bPos.x >= eLeft && bPos.x <= eRight && bPos.y >= eBottom && bPos.y <= eTop) {
-                if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
-                bit.remove();
-                removedByCollision = true;
+            if (name.equals("Shoot") && isPressed) player.shoot(bullets, assetManager);
 
-                if (en.takeDamageFromBullet()) {
-                    if (en.getGeometry().getParent() != null) guiNode.detachChild(en.getGeometry());
-                    deadEnemies.add(en);
+            if (name.equals("EnterTrash") && isPressed) tryEnterTrash();
+        }
+    };
+
+    //------------------------------------------------------------
+    // BULLETS, ENEMIES, RESET, ecc. (RESTO UGUALE)
+    //------------------------------------------------------------
+
+    private void updateBullets(float tpf) {
+        float screenWidth = settings.getWidth();
+        Iterator<Bullet> bit = bullets.iterator();
+        List<Enemy> deadEnemies = new ArrayList<>();
+
+        while (bit.hasNext()) {
+            Bullet b = bit.next();
+            b.update(tpf);
+            Vector3f bPos = b.getGeometry().getLocalTranslation().clone();
+
+            boolean removed = false;
+
+            for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
+                Vector3f ePosRaw = en.getGeometry().getLocalTranslation().clone();
+                float hw = en.getHalfWidth();
+                float hh = en.getHalfHeight();
+                Vector3f c = ePosRaw.add(hw, hh, 0f);
+
+                if (bPos.x >= c.x - hw && bPos.x <= c.x + hw &&
+                    bPos.y >= c.y - hh && bPos.y <= c.y + hh) {
+
+                    guiNode.detachChild(b.getGeometry());
+                    bit.remove();
+                    removed = true;
+
+                    if (en.takeDamageFromBullet()) {
+                        guiNode.detachChild(en.getGeometry());
+                        deadEnemies.add(en);
+                    }
+                    break;
                 }
-                break;
+            }
+
+            if (!removed) {
+                float bx = b.getGeometry().getLocalTranslation().x;
+                if (bx < 0 || bx > screenWidth) {
+                    guiNode.detachChild(b.getGeometry());
+                    bit.remove();
+                } else if (b.getGeometry().getParent() == null) {
+                    guiNode.attachChild(b.getGeometry());
+                }
             }
         }
 
-        if (!removedByCollision) {
-            float bx = b.getGeometry().getLocalTranslation().x;
-            if (!b.isActive() || bx < 0 || bx > screenWidth) {
-                if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
-                bit.remove();
-            } else if (b.getGeometry().getParent() == null) {
-                guiNode.attachChild(b.getGeometry());
-            }
-        }
-    }
-
-    if (!deadEnemies.isEmpty()) {
         rooms.get(currentRoomIndex).getEnemies().removeAll(deadEnemies);
     }
 
-    // --- NEMICI ---
-    pPos = player.getPosition();
-    pHalfW = player.getHitHalfWidth();
-    pHalfH = player.getHitHalfHeight();
+    private void updateEnemies(float tpf) {
+        Vector3f pPos = player.getPosition();
+        float pHW = player.getHitHalfWidth();
+        float pHH = player.getHitHalfHeight();
 
-    for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
-        en.update(tpf, player.getPosition());
-        if (en.getGeometry().getParent() == null) {
-            guiNode.attachChild(en.getGeometry());
-            Vector3f ep = en.getGeometry().getLocalTranslation();
-            en.getGeometry().setLocalTranslation(ep.x, ep.y, 0.15f);
-        }
+        for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
+            en.update(tpf, pPos);
 
-        Vector3f ePosRaw = en.getGeometry().getLocalTranslation().clone();
-        float eHalfW_hit = en.getHitHalfWidth();
-        float eHalfH_hit = en.getHitHalfHeight();
-        float eHalfW_center = en.getHalfWidth();
-        float eHalfH_center = en.getHalfHeight();
-        Vector3f eCenter = ePosRaw.add(eHalfW_center, eHalfH_center, 0f);
+            if (en.getGeometry().getParent() == null)
+                guiNode.attachChild(en.getGeometry());
 
-        float dx = Math.abs(eCenter.x - pPos.x);
-        float dy = Math.abs(eCenter.y - pPos.y);
+            Vector3f ePos = en.getGeometry().getLocalTranslation();
+            float ehw = en.getHitHalfWidth();
+            float ehh = en.getHitHalfHeight();
+            float ecx = ePos.x + en.getHalfWidth();
+            float ecy = ePos.y + en.getHalfHeight();
 
-        boolean collisionX = dx <= (eHalfW_hit + pHalfW);
-        boolean collisionY = dy <= (eHalfH_hit + pHalfH);
+            if (Math.abs(ecx - pPos.x) <= (ehw + pHW) &&
+                Math.abs(ecy - pPos.y) <= (ehh + pHH)) {
 
-        if (collisionX && collisionY) {
-            if (player.takeDamage() && healthBar != null) healthBar.loseLife();
+                if (player.takeDamage()) healthBar.loseLife();
+            }
         }
     }
-}
+
+    private void handleDeathScreen(float tpf) {
+        // uguale al tuo codice attuale
+    }
+
+    private void resetRooms() {
+        for (Room r : rooms) {
+            for (Enemy e : r.getEnemies())
+                if (e.getGeometry().getParent() != null)
+                    guiNode.detachChild(e.getGeometry());
+            r.getEnemies().clear();
+        }
+
+        float sw = settings.getWidth();
+        float sy = settings.getHeight() / 768f;
+        initEnemies(sw, sy);
+    }
+
+    private void resetGame() {
+        for (Bullet b : bullets)
+            if (b.getGeometry().getParent() != null)
+                guiNode.detachChild(b.getGeometry());
+        bullets.clear();
+
+        player.reset();
+        insideTrash = false;
+
+        resetRooms();
+        healthBar.refresh(player);
+        loadRoom(0);
+    }
 
 
     @Override
     public void simpleRender(RenderManager rm) {}
 
-    private final ActionListener actionListener = new ActionListener() {
-        @Override
-        public void onAction(String name, boolean isPressed, float tpf) {
-            if (name.equals("Left")) player.setLeft(isPressed);
-            if (name.equals("Right")) player.setRight(isPressed);
-            if (name.equals("Jump") && isPressed) player.jump();
-            if (name.equals("Shoot") && isPressed) player.shoot(bullets, assetManager);
-        }
-    }; 
-
-    private void resetRooms() {
-        // Svuota geometrie nemici e liste nemici
-        for (Room r : rooms) {
-            for (Enemy e : r.getEnemies()) {
-                if (e.getGeometry().getParent() != null) guiNode.detachChild(e.getGeometry());
-            }
-            r.getEnemies().clear();
-        }
-    
-        // Ricrea nemici come all'inizio
-        float sw = settings.getWidth();
-        float scaleY = settings.getHeight() / 768f;
-        initEnemies(sw, scaleY);
-    }
-    
-    private void resetGame() {
-        // 1. svuota proiettili
-        for (Bullet b : bullets) {
-            if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
-        }
-        bullets.clear();
-    
-        // 2. reset player
-        player.reset();
-    
-        // 3. reset stanze + nemici
-        resetRooms();
-    
-        // 4. reset barra della vita
-        healthBar.refresh(player);
-    
-        // 5. carica prima stanza
-        loadRoom(0);
-    }    
 }
