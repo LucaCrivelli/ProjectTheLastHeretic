@@ -58,13 +58,16 @@ public class Player {
 
     // HITBOX SCALE (0.0 - 1.0)
     private float hitboxScale = 0.5f;
+    
+    private float scaleY;
 
 
-    public Player(AssetManager assetManager, float screenWidth, float screenHeight) {
+    public Player(AssetManager assetManager, float screenWidth, float screenHeight, float scaleY) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
-        this.groundY = 190f;
-        this.playerSize = 242f;
+        this.groundY = 190f * scaleY;
+        this.playerSize = 242f *scaleY;
+        this.scaleY = scaleY;
 
         // === Carica le texture ===
         textureRight = assetManager.loadTexture("Textures/character_right.png");
@@ -81,7 +84,7 @@ public class Player {
         material.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
 
         // === Crea la geometria ===
-        quad = new Quad(360, 340, false);
+        quad = new Quad(360 * scaleY, 340 * scaleY, false);
         geometry = new Geometry("Player", quad);
         geometry.setMaterial(material);
 
@@ -204,7 +207,7 @@ public class Player {
 
             int direction = facingLeft ? -1 : 1;
 
-            Bullet bullet = new Bullet(assetManager, bulletPos, direction);
+            Bullet bullet = new Bullet(assetManager, bulletPos, direction, scaleY);
             bullets.add(bullet);
             shootTimer = 0.4f; // mezzo secondo cooldown
         }
@@ -262,6 +265,12 @@ public class Player {
 
     public int getMaxLives() {
         return maxLives;
+    }
+
+    public void reset() {
+        currentLives = maxLives;
+        invincibilityTimer = 0f;
+        node.setLocalTranslation(screenWidth / 2f, groundY, 0);
     }
 
 }

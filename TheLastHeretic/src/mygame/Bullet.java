@@ -46,14 +46,14 @@ public class Bullet {
      * Costruttore Bullet; se le texture non sono ancora preloadate,
      * le carica al volo la prima volta.
      */
-    public Bullet(AssetManager assetManager, Vector3f startPos, int direction) {
+    public Bullet(AssetManager assetManager, Vector3f startPos, int direction, float scaleY) {
         this.direction = direction;
 
         //se necessario
         if (texRight == null || texLeft == null) {
             preload(assetManager);
         }
-        Quad quad = new Quad(WIDTH, HEIGHT, false);
+        Quad quad = new Quad(WIDTH * scaleY, HEIGHT * scaleY, false);
         geom = new Geometry("Bullet", quad);
 
         Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");

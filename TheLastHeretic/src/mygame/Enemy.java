@@ -39,7 +39,7 @@ public class Enemy {
     
     private int hp = 4;
 
-    public Enemy(AssetManager assetManager, float startX, float startY, float screenWidth, String texRightPath, String texLeftPath, float speed) {
+    public Enemy(AssetManager assetManager, float startX, float startY, float screenWidth, String texRightPath, String texLeftPath, float speed, float scaleY) {
         
         this.speed = speed;
         
@@ -53,7 +53,7 @@ public class Enemy {
         texLeft.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
 
         // quad e geometry
-        quad = new Quad(212, 212, false);
+        quad = new Quad(212 * scaleY, 212 * scaleY, false);
         geom = new Geometry("Enemy", quad);
 
         material = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
