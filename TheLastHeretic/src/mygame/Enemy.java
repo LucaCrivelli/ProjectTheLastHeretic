@@ -39,9 +39,9 @@ public class Enemy {
     
     private int hp = 4;
 
-    public Enemy(AssetManager assetManager, float startX, float startY, float screenWidth, String texRightPath, String texLeftPath, float speed, float scaleY) {
+    public Enemy(AssetManager assetManager, float startX, float startY, float screenWidth, String texRightPath, String texLeftPath, float speed, float scaleX, float scaleY) {
         
-        this.speed = speed;
+        this.speed = speed*scaleX;
         
         // carico texture
         texRight = assetManager.loadTexture(texRightPath);
@@ -88,7 +88,6 @@ public class Enemy {
         active = v;
     }
 
-    // ritorna metà larghezza (assicurati che quad sia accessibile)
     public float getHalfWidth() {
         return quad.getWidth() / 2f;
     }
@@ -109,11 +108,6 @@ public class Enemy {
         this.hitboxScale = s;
     }
 
-    /** Restituisce gli HP attuali (opzionale, utile per debug) */
-    public int getHp() {
-        return hp;
-    }
-
     /**
      * Il nemico subisce un colpo. Ritorna true se il colpo ha ucciso il nemico.
      */
@@ -129,7 +123,7 @@ public class Enemy {
 
     // aggiornamento: chase se player dentro aggroRange (solo X considerato),
     // altrimenti pattuglia tra minX e maxX
-    public void update(float tpf, Vector3f playerPos) {
+    public void update(float tpf, Vector3f playerPos, float scaleX) {
         if (!active) return;
     
         Vector3f pos = geom.getLocalTranslation();
@@ -141,31 +135,30 @@ public class Enemy {
         float dx = pxCenter - exCenter;
         float absDx = Math.abs(dx);
     
-        float aggroRangeEffective = aggroRange;
-        float speedChase = speed * 1.2f;
-        float stopDistance = 114f;
+        float aggroRangeEffective = aggroRange * 3f * scaleX; // aumenta leggermente la distanza di aggancio
+        float speedChase = speed * 1.2f * scaleX;
+        float stopDistance = 50f * scaleX; // distanza minima di stop più piccola
     
-        // se siamo già dentro la zona di stop, fermati e non inseguire
-        boolean inStopZone = absDx <= stopDistance;
+        if (absDx <= aggroRangeEffective) {
+            // se siamo molto vicini, fermati solo quando siamo davvero a distanza minima
+            if (absDx > stopDistance) {
+                float targetCenter;
+                if (dx > 0) {
+                    targetCenter = pxCenter - stopDistance;
+                    direction = 1;
+                } else {
+                    targetCenter = pxCenter + stopDistance;
+                    direction = -1;
+                }
     
-        if (absDx <= aggroRangeEffective && !inStopZone) {
-            float targetCenter;
-            if (dx > 0) {
-                targetCenter = pxCenter - stopDistance;
-                direction = 1;
-            } else {
-                targetCenter = pxCenter + stopDistance;
-                direction = -1;
+                float move = speedChase * tpf;
+    
+                if (dx > 0) exCenter = Math.min(exCenter + move, targetCenter);
+                else exCenter = Math.max(exCenter - move, targetCenter);
+    
+                ex = exCenter - enemyHalf;
             }
-    
-            float move = speedChase * tpf;
-    
-            if (dx > 0) exCenter = Math.min(exCenter + move, targetCenter);
-            else exCenter = Math.max(exCenter - move, targetCenter);
-    
-            ex = exCenter - enemyHalf;
-        } 
-        else if (absDx > aggroRangeEffective) {
+        } else {
             // pattuglia normale
             ex += direction * speed * tpf;
             if (ex < minX) {
@@ -182,6 +175,6 @@ public class Enemy {
         else material.setTexture("ColorMap", texRight);
     
         geom.setLocalTranslation(ex, y, pos.z);
-    }
+    }    
 }
 

@@ -7,25 +7,27 @@ import com.jme3.math.Vector3f;
 
 /**
  *
- * @author guido.montalbetti
+ * @author Luca Crivelli
  */
 public class TrashCan {
     private Picture pic;
     private float x, y;
     private float width, height;
 
-    public TrashCan(AssetManager assetManager, float x, float y, float width, float height) {
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
-
+    public TrashCan(AssetManager assetManager, float x, float y, float width, float height, float scaleX, float scaleY) {
+        this.x = x * scaleX;
+        this.y = y * scaleY;
+        this.width = width*scaleY;
+        this.height = height * scaleY;
+    
         pic = new Picture("TrashCan");
         pic.setImage(assetManager, "Textures/rubbish_bin.png", true);
-        pic.setWidth(width);
-        pic.setHeight(height);
-        pic.setLocalTranslation(x, y, 0.12f);
+        pic.setWidth(this.width);
+        pic.setHeight(this.height);
+    
+        pic.setLocalTranslation(this.x, this.y, 0.9f);
     }
+      
 
     public Picture getPicture() {
         return pic;

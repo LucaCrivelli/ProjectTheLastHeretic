@@ -42,13 +42,20 @@ public class Player {
     private float hitboxScale = 0.5f;
 
     private float scaleY;
+    private float scaleX;
 
-    public Player(AssetManager assetManager, float screenWidth, float screenHeight, float scaleY) {
+    public Player(AssetManager assetManager, float screenWidth, float screenHeight, float scaleX, float scaleY) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
         this.groundY = 190f * scaleY;
         this.playerSize = 242f * scaleY;
         this.scaleY = scaleY;
+        this.scaleX = scaleX;
+        
+        this.speed *= scaleX;
+        this.jumpForce *= scaleX;
+        this.gravity *= scaleX;
+        this.velocityY *= scaleX;
 
         textureRight = assetManager.loadTexture("Textures/character_right.png");
         textureRight.setMagFilter(Texture.MagFilter.Nearest);
@@ -77,8 +84,12 @@ public class Player {
         return node;
     }
 
-    public void setLeft(boolean left) { this.left = left; }
-    public void setRight(boolean right) { this.right = right; }
+    public void setLeft(boolean left) {
+        this.left = left; 
+    }
+    public void setRight(boolean right) {
+        this.right = right; 
+    }
 
     public void jump() {
         if (!jumping) {
@@ -89,21 +100,23 @@ public class Player {
 
     public void update(float tpf) {
 
-        // ====== PLAYER BLOCCATO NEL BIDONE ======
+        // PLAYER BLOCCATO NEL BIDONE
         if (Main.insideTrash) return;
 
         Vector3f pos = node.getLocalTranslation();
 
-        if (left) pos.x -= speed * tpf;
-        if (right) pos.x += speed * tpf;
-
-        if (left && !facingLeft) {
-            facingLeft = true;
-            material.setTexture("ColorMap", textureLeft);
-        }
-        else if (right && facingLeft) {
-            facingLeft = false;
-            material.setTexture("ColorMap", textureRight);
+        if (left && !right) {
+            pos.x -= speed * tpf;
+            if (!facingLeft) {
+                facingLeft = true;
+                material.setTexture("ColorMap", textureLeft);
+            }
+        } else if (right && !left) {
+            pos.x += speed * tpf;
+            if (facingLeft) {
+                facingLeft = false;
+                material.setTexture("ColorMap", textureRight);
+            }
         }
 
         if (invincibilityTimer > 0f) invincibilityTimer -= tpf;
@@ -131,7 +144,7 @@ public class Player {
             bulletPos.z = 0.2f;
             int direction = facingLeft ? -1 : 1;
 
-            Bullet bullet = new Bullet(assetManager, bulletPos, direction, scaleY);
+            Bullet bullet = new Bullet(assetManager, bulletPos, direction, scaleX, scaleY);
             bullets.add(bullet);
             shootTimer = 0.4f;
         }
@@ -170,8 +183,12 @@ public class Player {
         return false;
     }
 
-    public int getCurrentLives() { return currentLives; }
-    public int getMaxLives() { return maxLives; }
+    public int getCurrentLives() {
+        return currentLives;
+    }
+    public int getMaxLives() {
+        return maxLives; 
+    }
 
     public void reset() {
         currentLives = maxLives;

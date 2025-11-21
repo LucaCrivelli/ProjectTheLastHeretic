@@ -15,8 +15,8 @@ import java.util.List;
 
 public class Main extends SimpleApplication {
 
-    public static boolean insideTrash = false;   // <<< nuovo
-    private TrashCan currentTrash = null;        // <<< nuovo
+    public static boolean insideTrash = false;
+    private TrashCan currentTrash = null;
 
     private Player player;
     private List<Bullet> bullets = new ArrayList<>();
@@ -51,17 +51,19 @@ public class Main extends SimpleApplication {
         float sw = settings.getWidth();
         float sh = settings.getHeight();
         float scaleY = sh / 768f;
+        float scaleX = sw / 1024f;
 
         // === ROOM CREATION ===
         rooms.add(new Room(assetManager, "Textures/sfondo0.png", sw, sh, "Sala1"));
         rooms.add(new Room(assetManager, "Textures/sfondo1.png", sw, sh, "Sala2"));
         rooms.add(new Room(assetManager, "Textures/sfondo2.png", sw, sh, "Sala3"));
         rooms.add(new Room(assetManager, "Textures/sfondo3.png", sw, sh, "Sala4"));
+        rooms.add(new Room(assetManager, "Textures/parcheggio.png", sw, sh, "Sala5"));
 
         // === Aggiunta bidone stanza 2 ===
-        rooms.get(1).addTrashCan(new TrashCan(assetManager, 500f, 200f, 128f, 128f));
+        rooms.get(3).addTrashCan(new TrashCan(assetManager, 600f, 110f, 178f, 178f, scaleX, scaleY));
 
-        player = new Player(assetManager, sw, sh, scaleY);
+        player = new Player(assetManager, sw, sh, scaleX, scaleY);
         guiNode.attachChild(player.getNode());
 
         healthBar = new HealthBar(assetManager, 5, 20f, sh - 112f, 92f, 92f);
@@ -69,7 +71,7 @@ public class Main extends SimpleApplication {
 
         loadRoom(0);
 
-        initEnemies(sw, scaleY);
+        initEnemies(sw, scaleX, scaleY);
 
         // INPUT
         inputManager.addMapping("Left", new KeyTrigger(KeyInput.KEY_A));
@@ -80,9 +82,7 @@ public class Main extends SimpleApplication {
         // NUOVO — entrare nel bidone
         inputManager.addMapping("EnterTrash", new KeyTrigger(KeyInput.KEY_W));
 
-        inputManager.addListener(actionListener,
-                "Left", "Right", "Jump", "Shoot", "EnterTrash"
-        );
+        inputManager.addListener(actionListener, "Left", "Right", "Jump", "Shoot", "EnterTrash");
 
         // CLICK per pulsante continua
         inputManager.addMapping("Click", new com.jme3.input.controls.MouseButtonTrigger(MouseInput.BUTTON_LEFT)); 
@@ -100,21 +100,18 @@ public class Main extends SimpleApplication {
         }, "Click");
     }
 
-    private void initEnemies(float sw, float scaleY) {
+    private void initEnemies(float sw, float scaleX,float scaleY) {
         for (Room r : rooms) r.getEnemies().clear();
 
-        Enemy e1 = new Enemy(assetManager, 100f, 120f * scaleY, sw,
-                "Textures/enemy_right.png", "Textures/enemy_left.png", 40, scaleY);
+        Enemy e1 = new Enemy(assetManager, 100f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 40, scaleX ,scaleY);
         e1.setPatrolBounds(20f, sw - 20f);
         rooms.get(1).addEnemy(e1);
 
-        Enemy e2 = new Enemy(assetManager, 400f, 120f * scaleY, sw,
-                "Textures/enemy_right.png", "Textures/enemy_left.png", 60, scaleY);
+        Enemy e2 = new Enemy(assetManager, 400f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 60, scaleX, scaleY);
         e2.setPatrolBounds(20f, sw - 20f);
         rooms.get(2).addEnemy(e2);
 
-        Enemy e3 = new Enemy(assetManager, 200f, 120f * scaleY, sw,
-                "Textures/enemy_right.png", "Textures/enemy_left.png", 90, scaleY);
+        Enemy e3 = new Enemy(assetManager, 200f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 90, scaleX, scaleY);
         e3.setPatrolBounds(20f, sw - 20f);
         rooms.get(2).addEnemy(e3);
     }
@@ -147,8 +144,8 @@ public class Main extends SimpleApplication {
 
         // Riattacca player
         if (!insideTrash) {
-            if (player.getNode().getParent() == null)
-                guiNode.attachChild(player.getNode());
+            guiNode.detachChild(player.getNode());
+            guiNode.attachChild(player.getNode());
         }
 
         // Attacca nemici nuova stanza
@@ -157,13 +154,21 @@ public class Main extends SimpleApplication {
         }
 
         // Attacca il trash can se esiste
-        if (rooms.get(idx).getTrashCan() != null)
+        if (rooms.get(idx).getTrashCan() != null){
             guiNode.attachChild(rooms.get(idx).getTrashCan().getPicture());
+        }
+
+        player.getNode().setLocalTranslation(
+            player.getPosition().x,
+            player.getPosition().y,
+            0.2f
+        );
     }
 
 
     @Override
     public void simpleUpdate(float tpf) {
+        float scaleX = settings.getWidth() / 1024;
 
         // Schermata morte
         if (player.getCurrentLives() <= 0) {
@@ -200,41 +205,47 @@ public class Main extends SimpleApplication {
         }
 
         // Proiettili
-        if (!insideTrash) updateBullets(tpf);
+        updateBullets(tpf);
 
         // Nemici
-        if (!insideTrash) updateEnemies(tpf);
+        if (!insideTrash) updateEnemies(tpf, scaleX);
     }
 
-    //------------------------------------------------------------
     // ENTRARE NEL BIDONE
-    //------------------------------------------------------------
     private void tryEnterTrash() {
-        Room r = rooms.get(currentRoomIndex);
-        TrashCan t = r.getTrashCan();
-        if (t == null) return;
+    Room r = rooms.get(currentRoomIndex);
+    TrashCan t = r.getTrashCan();
+    if (t == null) return;
 
-        Vector3f p = player.getPosition();
-        float pW = player.getHalfWidth();
-        float pH = player.getHalfHeight();
+    Vector3f p = player.getPosition();
+    float pW = player.getHalfWidth();
+    float pH = player.getHalfHeight();
 
-        if (t.intersects(p.x - pW, p.y - pH, pW * 2f, pH * 2f)) {
+    // Prendiamo il centro del player
+    float playerCenterX = p.x;
+    float playerCenterY = p.y;
 
-            insideTrash = true;
-            currentTrash = t;
+    // Margine di tolleranza per l'entrata
+    float marginX = 20f; // solo ±20px circa orizzontalmente
+    float marginY = 0f;  // verticale già a posto
 
-            guiNode.detachChild(player.getNode());
+    boolean overlapX = (playerCenterX + marginX) >= t.getX() && (playerCenterX - marginX) <= (t.getX() + t.getWidth());
+    boolean overlapY = (playerCenterY + marginY) >= t.getY() && (playerCenterY - marginY) <= (t.getY() + t.getHeight());
 
-            // <<< EFFETTI SONORI QUI >>>
+    if (overlapX && overlapY) {
+        insideTrash = true;
+        currentTrash = t;
 
-            player.reset();
-            healthBar.refresh(player);
-        }
+        guiNode.detachChild(player.getNode());
+
+        // <<< EFFETTI SONORI QUI >>>
+
+        player.reset();
+        healthBar.refresh(player);
     }
+}
 
-    //------------------------------------------------------------
     // USCIRE DAL BIDONE CON SPACE
-    //------------------------------------------------------------
     private void exitTrash() {
         if (!insideTrash) return;
     
@@ -248,15 +259,14 @@ public class Main extends SimpleApplication {
         float newX = currentTrash.getX() + currentTrash.getWidth() / 2f;
         float newY = currentTrash.getY() + currentTrash.getHeight();
     
-        player.setPosition(newX, newY); // <<< SOLO 2 PARAMETRI!
+        player.setPosition(newX, newY);
+        player.getNode().setLocalTranslation(newX, newY, 0.2f);
     
         // <<< QUI PUOI METTERE IL SUONO DI USCITA >>>
     
         currentTrash = null;
     }
     
-
-    //------------------------------------------------------------
     private final ActionListener actionListener = new ActionListener() {
         @Override
         public void onAction(String name, boolean isPressed, float tpf) {
@@ -277,9 +287,7 @@ public class Main extends SimpleApplication {
         }
     };
 
-    //------------------------------------------------------------
     // BULLETS, ENEMIES, RESET, ecc. (RESTO UGUALE)
-    //------------------------------------------------------------
 
     private void updateBullets(float tpf) {
         float screenWidth = settings.getWidth();
@@ -328,13 +336,13 @@ public class Main extends SimpleApplication {
         rooms.get(currentRoomIndex).getEnemies().removeAll(deadEnemies);
     }
 
-    private void updateEnemies(float tpf) {
+    private void updateEnemies(float tpf, float scaleX) {
         Vector3f pPos = player.getPosition();
         float pHW = player.getHitHalfWidth();
         float pHH = player.getHitHalfHeight();
 
         for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
-            en.update(tpf, pPos);
+            en.update(tpf, pPos, scaleX);
 
             if (en.getGeometry().getParent() == null)
                 guiNode.attachChild(en.getGeometry());
@@ -354,7 +362,30 @@ public class Main extends SimpleApplication {
     }
 
     private void handleDeathScreen(float tpf) {
-        // uguale al tuo codice attuale
+        if (!deathScreenActive) {
+            deathScreenActive = true;
+            deathScreenTimer = 0;
+            showContinueButton = false;
+
+            deathScreenStatic = new Picture("Dead");
+            deathScreenStatic.setImage(assetManager, "Textures/you-died.png", true);
+            deathScreenStatic.setWidth(settings.getWidth());
+            deathScreenStatic.setHeight(settings.getHeight());
+            deathScreenStatic.setLocalTranslation(0, 0, 10f);
+            guiNode.attachChild(deathScreenStatic);
+        }
+
+        deathScreenTimer += tpf;
+
+        if (deathScreenTimer >= deathScreenDelay && !showContinueButton) {
+            continueButton = new Picture("Continue");
+            continueButton.setImage(assetManager, "Textures/continue.png", true);
+            continueButton.setWidth(settings.getWidth() * 0.75f);
+            continueButton.setHeight(settings.getHeight() * 0.6f);
+            continueButton.setLocalTranslation(settings.getWidth() * 0.17f, settings.getHeight() * 0.01f, 11f);
+            guiNode.attachChild(continueButton);
+            showContinueButton = true;
+        }
     }
 
     private void resetRooms() {
@@ -367,7 +398,8 @@ public class Main extends SimpleApplication {
 
         float sw = settings.getWidth();
         float sy = settings.getHeight() / 768f;
-        initEnemies(sw, sy);
+        float sx = settings.getWidth() / 1024f;
+        initEnemies(sw, sx, sy);
     }
 
     private void resetGame() {

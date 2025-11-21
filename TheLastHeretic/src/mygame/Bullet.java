@@ -16,7 +16,7 @@ import com.jme3.texture.Texture;
 public class Bullet {
 
     private Geometry geom;
-    private float speed = 600f; // velocità orizzontale
+    private float speed = 600f;
     private boolean active = true;
     private int direction = 1;
 
@@ -46,9 +46,9 @@ public class Bullet {
      * Costruttore Bullet; se le texture non sono ancora preloadate,
      * le carica al volo la prima volta.
      */
-    public Bullet(AssetManager assetManager, Vector3f startPos, int direction, float scaleY) {
+    public Bullet(AssetManager assetManager, Vector3f startPos, int direction, float scaleX, float scaleY) {
         this.direction = direction;
-
+        this.speed *= scaleX;
         //se necessario
         if (texRight == null || texLeft == null) {
             preload(assetManager);
