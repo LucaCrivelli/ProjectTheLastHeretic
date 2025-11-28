@@ -21,6 +21,7 @@ public class Room {
     private final Picture background;
     private final List<Enemy> enemies = new ArrayList<>();
     private TrashCan trashCan;
+    private List<Wall> walls = new ArrayList<>();
 
     public Room(com.jme3.asset.AssetManager assetManager, String texturePath, float screenWidth, float screenHeight, String name) {
         this.name = name;
@@ -55,4 +56,12 @@ public class Room {
         return trashCan;
     }
     
+    
+    public void addWall(Wall w) {
+        walls.add(w);
+    }
+
+    public List<Wall> getWalls() {
+        return walls;
+    }
 }

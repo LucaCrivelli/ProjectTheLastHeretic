@@ -7,12 +7,13 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.shape.Quad;
 import com.jme3.texture.Texture;
 import com.jme3.math.Vector3f;
+import mygame.Bullet.BulletType;
 
 /**
  *Enemy semplice: pattuglia tra minX e maxX, insegue il player se entro aggroRange.
  * Usa due texture (right/left).
  * 
- * @author ingrid.cereda
+ * @author luca crivelli
  */
 public class Enemy {
 
@@ -37,11 +38,22 @@ public class Enemy {
     // hitbox scale per il nemico (puoi tararlo per tipi diversi)
     private float hitboxScale = 0.4f;
     
-    private int hp = 4;
+    private int hp;
+    
+    private boolean lancio;
 
-    public Enemy(AssetManager assetManager, float startX, float startY, float screenWidth, String texRightPath, String texLeftPath, float speed, float scaleX, float scaleY) {
+    private float shootCooldown = 4f;
+    private float shootTimer = 0f;
+    
+    private float scaleY;
+
+
+    public Enemy(AssetManager assetManager, float startX, float startY, float screenWidth, String texRightPath, String texLeftPath, float speed, float scaleX, float scaleY, boolean lancio, int hp) {
         
         this.speed = speed*scaleX;
+        this.lancio = lancio;
+        this.hp = hp;
+        this.scaleY = scaleY;
         
         // carico texture
         texRight = assetManager.loadTexture(texRightPath);
@@ -173,8 +185,32 @@ public class Enemy {
         // aggiorna texture
         if (direction == -1) material.setTexture("ColorMap", texLeft);
         else material.setTexture("ColorMap", texRight);
+
+        if (lancio) {
+            shootTimer -= tpf;
+        }
     
         geom.setLocalTranslation(ex, y, pos.z);
-    }    
+    }
+    
+    public Bullet tryShoot(AssetManager assetManager, float scaleX, Vector3f playerPos) {
+        if (!lancio) return null;
+        if (shootTimer > 0f) return null;
+    
+        shootTimer = shootCooldown;
+    
+        // FORZIAMO L'ORIENTAMENTO BASATO SULLA POSIZIONE DEL PLAYER
+        float px = playerPos.x;
+        float ex = geom.getLocalTranslation().x + getHalfWidth();
+    
+        direction = (px >= ex ? 1 : -1);
+    
+        Vector3f pos = geom.getLocalTranslation().clone();
+        pos.x += getHalfWidth() * (direction == -1 ? -0.2f : 1.2f);
+        pos.y += getHalfHeight();
+    
+        return new Bullet(assetManager, pos, direction, scaleX, this.scaleY, BulletType.BOSS, 72, 48);
+    }
+                
 }
 

@@ -8,6 +8,7 @@ import com.jme3.scene.Node;
 import com.jme3.scene.shape.Quad;
 import com.jme3.texture.Texture;
 import com.jme3.math.Vector3f;
+import mygame.Bullet.BulletType;
 
 public class Player {
 
@@ -144,7 +145,8 @@ public class Player {
             bulletPos.z = 0.2f;
             int direction = facingLeft ? -1 : 1;
 
-            Bullet bullet = new Bullet(assetManager, bulletPos, direction, scaleX, scaleY);
+            Bullet bullet = new Bullet(assetManager, bulletPos, direction, scaleX, scaleY, BulletType.PLAYER, 18f, 16f);
+
             bullets.add(bullet);
             shootTimer = 0.4f;
         }

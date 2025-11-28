@@ -34,6 +34,10 @@ public class Main extends SimpleApplication {
     private float deathScreenTimer = 0f;
     private float deathScreenDelay = 3.0f;
     private boolean showContinueButton = false;
+    
+    private boolean gameStarted = false;
+
+    Menu startMenu;
 
 
     public static void main(String[] args) {
@@ -46,6 +50,7 @@ public class Main extends SimpleApplication {
         setDisplayStatView(false);
         flyCam.setEnabled(false);
 
+
         Bullet.preload(assetManager);
 
         float sw = settings.getWidth();
@@ -53,12 +58,34 @@ public class Main extends SimpleApplication {
         float scaleY = sh / 768f;
         float scaleX = sw / 1024f;
 
+        startMenu = new Menu(assetManager, guiNode, inputManager, sw, sh, new Menu.MenuListener() {
+
+            @Override
+            public void onPlay() {
+                startMenu.hide(guiNode);
+                gameStarted = true;
+            }
+
+            @Override
+            public void onControls() {
+                // Apri pagina controlli o immagine
+            }
+
+            @Override
+            public void onQuit() {
+                stop();
+            }
+        });
+
+        gameStarted = false;
+
         // === ROOM CREATION ===
         rooms.add(new Room(assetManager, "Textures/sfondo0.png", sw, sh, "Sala1"));
         rooms.add(new Room(assetManager, "Textures/sfondo1.png", sw, sh, "Sala2"));
         rooms.add(new Room(assetManager, "Textures/sfondo2.png", sw, sh, "Sala3"));
         rooms.add(new Room(assetManager, "Textures/sfondo3.png", sw, sh, "Sala4"));
         rooms.add(new Room(assetManager, "Textures/parcheggio.png", sw, sh, "Sala5"));
+        rooms.add(new Room(assetManager, "Textures/sfondo4.png", sw, sh, "Sala6"));
 
         // === Aggiunta bidone stanza 2 ===
         rooms.get(3).addTrashCan(new TrashCan(assetManager, 600f, 110f, 178f, 178f, scaleX, scaleY));
@@ -70,6 +97,7 @@ public class Main extends SimpleApplication {
         healthBar.attachToNode(guiNode, 0.5f);
 
         loadRoom(0);
+        initWallsForRooms(scaleX);
 
         initEnemies(sw, scaleX, scaleY);
 
@@ -103,18 +131,44 @@ public class Main extends SimpleApplication {
     private void initEnemies(float sw, float scaleX,float scaleY) {
         for (Room r : rooms) r.getEnemies().clear();
 
-        Enemy e1 = new Enemy(assetManager, 100f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 40, scaleX ,scaleY);
+        Enemy e1 = new Enemy(assetManager, 100f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 40, scaleX ,scaleY, false, 4);
         e1.setPatrolBounds(20f, sw - 20f);
         rooms.get(1).addEnemy(e1);
 
-        Enemy e2 = new Enemy(assetManager, 400f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 60, scaleX, scaleY);
+        Enemy e2 = new Enemy(assetManager, 400f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 60, scaleX, scaleY, false, 4);
         e2.setPatrolBounds(20f, sw - 20f);
         rooms.get(2).addEnemy(e2);
 
-        Enemy e3 = new Enemy(assetManager, 200f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 90, scaleX, scaleY);
+        Enemy e3 = new Enemy(assetManager, 200f, 120f * scaleY, sw, "Textures/enemy_right.png", "Textures/enemy_left.png", 90, scaleX, scaleY, false, 4);
         e3.setPatrolBounds(20f, sw - 20f);
         rooms.get(2).addEnemy(e3);
+
+        Enemy boss = new Enemy(assetManager, 600f, 120f * scaleY, sw, "Textures/boss_right.png", "Textures/boss_left.png", 60, scaleX, scaleY, true, 10);
+        boss.setPatrolBounds(20f, sw - 20f);
+        rooms.get(4).addEnemy(boss);
     }
+
+    private void initWallsForRooms(float scaleX) {
+        float sw = settings.getWidth();
+        float sh = settings.getHeight();
+
+        float wallWidth = 50f * scaleX;
+        float leftOffset = -220f * scaleX;
+        float rightOffset = 200f * scaleX;
+    
+        for (Room r : rooms) {
+            // muro sinistro
+            Wall leftWall = new Wall(assetManager, leftOffset, 0, wallWidth, sh);
+            r.addWall(leftWall);
+            guiNode.attachChild(leftWall.getGeometry());
+
+            // muro destro
+            Wall rightWall = new Wall(assetManager, sw + rightOffset, 0, wallWidth, sh);
+            r.addWall(rightWall);
+            guiNode.attachChild(rightWall.getGeometry());
+
+        }
+    }    
 
     private void loadRoom(int idx) {
         if (idx < 0 || idx >= rooms.size()) return;
@@ -168,7 +222,9 @@ public class Main extends SimpleApplication {
 
     @Override
     public void simpleUpdate(float tpf) {
-        float scaleX = settings.getWidth() / 1024;
+        if (!gameStarted) return;
+
+        float scaleX = settings.getWidth() / 1024f;
 
         // Schermata morte
         if (player.getCurrentLives() <= 0) {
@@ -176,9 +232,25 @@ public class Main extends SimpleApplication {
             return;
         }
 
+        Room currentRoom = rooms.get(currentRoomIndex);
+        Vector3f oldPos = player.getPosition().clone(); // posizione precedente
+
         // PLAYER BLOCCATO NEL BIDONE
         if (!insideTrash) {
             player.update(tpf);
+
+            // Blocco player contro muri invisibili se ci sono nemici
+            if (!currentRoom.getEnemies().isEmpty()) {
+                for (Wall wall : currentRoom.getWalls()) {
+                    if (wall.collides(player.getPosition().x, player.getPosition().y,
+                                    player.getHalfWidth(), player.getHalfHeight())) {
+                        // rollback posizione
+                        player.setPosition(oldPos.x, oldPos.y);
+                        player.getNode().setLocalTranslation(oldPos.x, oldPos.y, 0.2f);
+                        break;
+                    }
+                }
+            }
         }
 
         float screenWidth = settings.getWidth();
@@ -208,42 +280,53 @@ public class Main extends SimpleApplication {
         updateBullets(tpf);
 
         // Nemici
-        if (!insideTrash) updateEnemies(tpf, scaleX);
+        if (!insideTrash) {
+            updateEnemies(tpf, scaleX);
+
+            // Rimuovi muri se la stanza è libera
+            if (currentRoom.getEnemies().isEmpty()) {
+                for (Wall wall : currentRoom.getWalls()) {
+                    if (wall.getGeometry().getParent() != null)
+                        guiNode.detachChild(wall.getGeometry());
+                }
+            }
+        }
     }
+
 
     // ENTRARE NEL BIDONE
     private void tryEnterTrash() {
-    Room r = rooms.get(currentRoomIndex);
-    TrashCan t = r.getTrashCan();
-    if (t == null) return;
+        Room r = rooms.get(currentRoomIndex);
+        TrashCan t = r.getTrashCan();
+        if (t == null) return;
 
-    Vector3f p = player.getPosition();
-    float pW = player.getHalfWidth();
-    float pH = player.getHalfHeight();
+        Vector3f p = player.getPosition();
+        float pW = player.getHalfWidth();
+        float pH = player.getHalfHeight();
 
-    // Prendiamo il centro del player
-    float playerCenterX = p.x;
-    float playerCenterY = p.y;
+        // Prendiamo il centro del player
+        float playerCenterX = p.x;
+        float playerCenterY = p.y;
 
-    // Margine di tolleranza per l'entrata
-    float marginX = 20f; // solo ±20px circa orizzontalmente
-    float marginY = 0f;  // verticale già a posto
+        // Margine di tolleranza per l'entrata
+        float marginX = 20f; // solo ±20px circa orizzontalmente
+        float marginY = 0f;  // verticale già a posto
 
-    boolean overlapX = (playerCenterX + marginX) >= t.getX() && (playerCenterX - marginX) <= (t.getX() + t.getWidth());
-    boolean overlapY = (playerCenterY + marginY) >= t.getY() && (playerCenterY - marginY) <= (t.getY() + t.getHeight());
+        boolean overlapX = (playerCenterX + marginX) >= t.getX() && (playerCenterX - marginX) <= (t.getX() + t.getWidth());
+        boolean overlapY = (playerCenterY + marginY) >= t.getY() && (playerCenterY - marginY) <= (t.getY() + t.getHeight());
 
-    if (overlapX && overlapY) {
-        insideTrash = true;
-        currentTrash = t;
+        if (overlapX && overlapY) {
+            insideTrash = true;
+            currentTrash = t;
 
-        guiNode.detachChild(player.getNode());
+            guiNode.detachChild(player.getNode());
 
-        // <<< EFFETTI SONORI QUI >>>
+            // <<< EFFETTI SONORI QUI >>>
 
-        player.reset();
-        healthBar.refresh(player);
+            player.reset();
+            healthBar.refresh(player);
+        }
     }
-}
 
     // USCIRE DAL BIDONE CON SPACE
     private void exitTrash() {
@@ -287,8 +370,6 @@ public class Main extends SimpleApplication {
         }
     };
 
-    // BULLETS, ENEMIES, RESET, ecc. (RESTO UGUALE)
-
     private void updateBullets(float tpf) {
         float screenWidth = settings.getWidth();
         Iterator<Bullet> bit = bullets.iterator();
@@ -298,40 +379,61 @@ public class Main extends SimpleApplication {
             Bullet b = bit.next();
             b.update(tpf);
             Vector3f bPos = b.getGeometry().getLocalTranslation().clone();
-
             boolean removed = false;
-
-            for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
-                Vector3f ePosRaw = en.getGeometry().getLocalTranslation().clone();
-                float hw = en.getHalfWidth();
-                float hh = en.getHalfHeight();
-                Vector3f c = ePosRaw.add(hw, hh, 0f);
-
-                if (bPos.x >= c.x - hw && bPos.x <= c.x + hw &&
-                    bPos.y >= c.y - hh && bPos.y <= c.y + hh) {
-
-                    guiNode.detachChild(b.getGeometry());
-                    bit.remove();
-                    removed = true;
-
-                    if (en.takeDamageFromBullet()) {
-                        guiNode.detachChild(en.getGeometry());
-                        deadEnemies.add(en);
+        
+            if (b.getType() == Bullet.BulletType.PLAYER) {
+                // --- Collisione bullet player vs nemici ---
+                for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
+                    Vector3f ePosRaw = en.getGeometry().getLocalTranslation().clone();
+                    float hw = en.getHalfWidth();
+                    float hh = en.getHalfHeight();
+                    Vector3f c = ePosRaw.add(hw, hh, 0f);
+        
+                    if (bPos.x >= c.x - hw && bPos.x <= c.x + hw &&
+                        bPos.y >= c.y - hh && bPos.y <= c.y + hh) {
+        
+                        guiNode.detachChild(b.getGeometry());
+                        removed = true;
+        
+                        if (en.takeDamageFromBullet()) {
+                            guiNode.detachChild(en.getGeometry());
+                            rooms.get(currentRoomIndex).getEnemies().remove(en);
+                        }
+        
+                        break;
                     }
-                    break;
                 }
-            }
-
-            if (!removed) {
-                float bx = b.getGeometry().getLocalTranslation().x;
-                if (bx < 0 || bx > screenWidth) {
+            } else if (b.getType() == Bullet.BulletType.BOSS) {
+                // --- Collisione bullet boss vs player ---
+                Vector3f pPos = player.getPosition();
+                float pHW = player.getHitHalfWidth();
+                float pHH = player.getHitHalfHeight();
+        
+                if (bPos.x >= pPos.x - pHW && bPos.x <= pPos.x + pHW &&
+                    bPos.y >= pPos.y - pHH && bPos.y <= pPos.y + pHH) {
+        
                     guiNode.detachChild(b.getGeometry());
-                    bit.remove();
-                } else if (b.getGeometry().getParent() == null) {
-                    guiNode.attachChild(b.getGeometry());
+                    removed = true;
+        
+                    if (player.takeDamage()) {
+                        healthBar.loseLife();
+                    }
                 }
             }
-        }
+        
+            // --- Rimozione generale se esce dallo schermo ---
+            float bx = b.getGeometry().getLocalTranslation().x;
+            if (!removed && (bx < 0 || bx > settings.getWidth())) {
+                guiNode.detachChild(b.getGeometry());
+                removed = true;
+            }
+        
+            if (removed) {
+                bit.remove();
+            } else if (b.getGeometry().getParent() == null) {
+                guiNode.attachChild(b.getGeometry());
+            }
+        }        
 
         rooms.get(currentRoomIndex).getEnemies().removeAll(deadEnemies);
     }
@@ -340,26 +442,46 @@ public class Main extends SimpleApplication {
         Vector3f pPos = player.getPosition();
         float pHW = player.getHitHalfWidth();
         float pHH = player.getHitHalfHeight();
-
+    
         for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) {
+    
+            // Aggiorno movimento e stato nemico
             en.update(tpf, pPos, scaleX);
-
+    
+            // AGGIUNTA: prova a sparare, SOLO se il nemico ha lancio=true
+            Bullet bossBullet = en.tryShoot(assetManager, scaleX, pPos);
+            if (bossBullet != null) {
+                bullets.add(bossBullet);
+            }
+    
+            // Se il nemico non è attaccato alla scena, lo attacco ora
             if (en.getGeometry().getParent() == null)
                 guiNode.attachChild(en.getGeometry());
-
+    
+            // Collisione nemico vs player
             Vector3f ePos = en.getGeometry().getLocalTranslation();
             float ehw = en.getHitHalfWidth();
             float ehh = en.getHitHalfHeight();
-            float ecx = ePos.x + en.getHalfWidth();
-            float ecy = ePos.y + en.getHalfHeight();
+            float ecx = ePos.x + en.getHitHalfWidth();
+            float ecy = ePos.y + en.getHitHalfHeight();
 
+    
             if (Math.abs(ecx - pPos.x) <= (ehw + pHW) &&
                 Math.abs(ecy - pPos.y) <= (ehh + pHH)) {
-
+    
                 if (player.takeDamage()) healthBar.loseLife();
             }
         }
-    }
+
+        Room currentRoom = rooms.get(currentRoomIndex);
+        if (currentRoom.getEnemies().isEmpty()) {
+            for (Wall wall : currentRoom.getWalls()) {
+                if (wall.getGeometry().getParent() != null) {
+                    guiNode.detachChild(wall.getGeometry());
+                }
+            }
+        }
+    }    
 
     private void handleDeathScreen(float tpf) {
         if (!deathScreenActive) {
