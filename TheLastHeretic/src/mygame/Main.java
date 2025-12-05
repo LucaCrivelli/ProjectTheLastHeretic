@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+
 public class Main extends SimpleApplication {
 
     public static boolean insideTrash = false;
@@ -37,6 +38,11 @@ public class Main extends SimpleApplication {
     
     private boolean gameStarted = false;
 
+    private CreditsScreen creditsScreen; 
+    private ControlsScreen controlsScreen;
+    private boolean showingControls = false;
+    private Menu.MenuListener startMenuListener;
+
     Menu startMenu;
 
 
@@ -52,14 +58,15 @@ public class Main extends SimpleApplication {
 
 
         Bullet.preload(assetManager);
+        Sound.init(assetManager);
 
         float sw = settings.getWidth();
         float sh = settings.getHeight();
         float scaleY = sh / 768f;
         float scaleX = sw / 1024f;
 
-        startMenu = new Menu(assetManager, guiNode, inputManager, sw, sh, new Menu.MenuListener() {
-
+        // salva il listener in una variabile per poterlo riusare
+        startMenuListener = new Menu.MenuListener() {
             @Override
             public void onPlay() {
                 startMenu.hide(guiNode);
@@ -68,18 +75,45 @@ public class Main extends SimpleApplication {
 
             @Override
             public void onControls() {
-                // Apri pagina controlli o immagine
+                startMenu.hide(guiNode);
+                showingControls = true;
+
+                controlsScreen = new ControlsScreen(assetManager, guiNode, inputManager, sw, sh, new ControlsScreen.ControlsListener() {
+                    @Override
+                    public void onMenu() {
+                        controlsScreen.hide(guiNode);
+                        showingControls = false;
+                        startMenu = new Menu(assetManager, guiNode, inputManager, sw, sh, startMenuListener);
+                    }
+                });
+            }
+
+            @Override
+            public void onCredits() {
+                startMenu.hide(guiNode);
+
+                creditsScreen = new CreditsScreen(assetManager, guiNode, inputManager, sw, sh,new CreditsScreen.CreditsListener() {
+                    @Override
+                    public void onMenu() {
+                        creditsScreen.hide(guiNode);
+                        startMenu = new Menu(assetManager, guiNode, inputManager, sw, sh, startMenuListener);
+                    }
+                });
             }
 
             @Override
             public void onQuit() {
                 stop();
             }
-        });
+        };
+
+        // crea il menu principale
+        startMenu = new Menu(assetManager, guiNode, inputManager, sw, sh, startMenuListener);
+        
 
         gameStarted = false;
 
-        // === ROOM CREATION ===
+        // ROOM CREATION
         rooms.add(new Room(assetManager, "Textures/sfondo0.png", sw, sh, "Sala1"));
         rooms.add(new Room(assetManager, "Textures/sfondo1.png", sw, sh, "Sala2"));
         rooms.add(new Room(assetManager, "Textures/sfondo2.png", sw, sh, "Sala3"));
@@ -87,7 +121,7 @@ public class Main extends SimpleApplication {
         rooms.add(new Room(assetManager, "Textures/parcheggio.png", sw, sh, "Sala5"));
         rooms.add(new Room(assetManager, "Textures/sfondo4.png", sw, sh, "Sala6"));
 
-        // === Aggiunta bidone stanza 2 ===
+        // Aggiunta bidone stanza 2
         rooms.get(3).addTrashCan(new TrashCan(assetManager, 600f, 110f, 178f, 178f, scaleX, scaleY));
 
         player = new Player(assetManager, sw, sh, scaleX, scaleY);
@@ -106,8 +140,6 @@ public class Main extends SimpleApplication {
         inputManager.addMapping("Right", new KeyTrigger(KeyInput.KEY_D));
         inputManager.addMapping("Jump", new KeyTrigger(KeyInput.KEY_SPACE));
         inputManager.addMapping("Shoot", new com.jme3.input.controls.MouseButtonTrigger(MouseInput.BUTTON_LEFT));
-
-        // NUOVO — entrare nel bidone
         inputManager.addMapping("EnterTrash", new KeyTrigger(KeyInput.KEY_W));
 
         inputManager.addListener(actionListener, "Left", "Right", "Jump", "Shoot", "EnterTrash");
@@ -187,10 +219,13 @@ public class Main extends SimpleApplication {
             guiNode.detachChild(old.getPicture());
 
         // rimuovi nemici
-        for (Room r : rooms)
-            for (Enemy en : r.getEnemies())
-                if (en.getGeometry().getParent() != null)
+        for (Room r : rooms){
+            for (Enemy en : r.getEnemies()){
+                if (en.getGeometry().getParent() != null){
                     guiNode.detachChild(en.getGeometry());
+                }
+            }
+        }
 
         currentRoomIndex = idx;
         currentBackground = rooms.get(idx).getBackground();
@@ -202,10 +237,31 @@ public class Main extends SimpleApplication {
             guiNode.attachChild(player.getNode());
         }
 
+        //----
         // Attacca nemici nuova stanza
         for (Enemy en : rooms.get(idx).getEnemies()) {
             guiNode.attachChild(en.getGeometry());
+
+            // --- SUONI ---
+            if (en.tryShoot(assetManager, 0, player.getPosition()) != null) {
+                // il boss fa il suo suono continuo
+                Sound.addEnemySound(en, true); 
+            } else {
+                // nemico normale
+                Sound.addEnemySound(en, false);
+            }
         }
+
+        // Rimuovi suoni dei nemici delle stanze precedenti
+        for (Room r : rooms) {
+            if (r != rooms.get(idx)) {
+                for (Enemy en : r.getEnemies()) {
+                    Sound.removeEnemySound(en);
+                }
+            }
+        }
+
+        //---
 
         // Attacca il trash can se esiste
         if (rooms.get(idx).getTrashCan() != null){
@@ -286,8 +342,9 @@ public class Main extends SimpleApplication {
             // Rimuovi muri se la stanza è libera
             if (currentRoom.getEnemies().isEmpty()) {
                 for (Wall wall : currentRoom.getWalls()) {
-                    if (wall.getGeometry().getParent() != null)
+                    if (wall.getGeometry().getParent() != null){
                         guiNode.detachChild(wall.getGeometry());
+                    }
                 }
             }
         }
@@ -321,7 +378,7 @@ public class Main extends SimpleApplication {
 
             guiNode.detachChild(player.getNode());
 
-            // <<< EFFETTI SONORI QUI >>>
+            Sound.closeDoor();
 
             player.reset();
             healthBar.refresh(player);
@@ -345,7 +402,7 @@ public class Main extends SimpleApplication {
         player.setPosition(newX, newY);
         player.getNode().setLocalTranslation(newX, newY, 0.2f);
     
-        // <<< QUI PUOI METTERE IL SUONO DI USCITA >>>
+        Sound.openDoor();
     
         currentTrash = null;
     }
@@ -398,13 +455,14 @@ public class Main extends SimpleApplication {
                         if (en.takeDamageFromBullet()) {
                             guiNode.detachChild(en.getGeometry());
                             rooms.get(currentRoomIndex).getEnemies().remove(en);
+                            Sound.removeEnemySound(en);
                         }
         
                         break;
                     }
                 }
             } else if (b.getType() == Bullet.BulletType.BOSS) {
-                // --- Collisione bullet boss vs player ---
+                // Collisione bullet boss vs player
                 Vector3f pPos = player.getPosition();
                 float pHW = player.getHitHalfWidth();
                 float pHH = player.getHitHalfHeight();
@@ -485,8 +543,12 @@ public class Main extends SimpleApplication {
 
     private void handleDeathScreen(float tpf) {
         if (!deathScreenActive) {
+            for (Enemy en : new ArrayList<>(rooms.get(currentRoomIndex).getEnemies())) { 
+                Sound.removeEnemySound(en);
+            }
+            Sound.died();
             deathScreenActive = true;
-            deathScreenTimer = 0;
+            deathScreenTimer = -3;
             showContinueButton = false;
 
             deathScreenStatic = new Picture("Dead");

@@ -208,7 +208,9 @@ public class Enemy {
         Vector3f pos = geom.getLocalTranslation().clone();
         pos.x += getHalfWidth() * (direction == -1 ? -0.2f : 1.2f);
         pos.y += getHalfHeight();
-    
+        
+        
+        Sound.throwKnife();
         return new Bullet(assetManager, pos, direction, scaleX, this.scaleY, BulletType.BOSS, 72, 48);
     }
                 

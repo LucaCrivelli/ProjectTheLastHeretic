@@ -8,7 +8,7 @@ import com.jme3.asset.AssetManager;
 
 /**
  *
- * @author ingrid.cereda
+ * @author luca crivelli
  */
 public class Wall {
     private Geometry geom;

@@ -146,6 +146,8 @@ public class Player {
             int direction = facingLeft ? -1 : 1;
 
             Bullet bullet = new Bullet(assetManager, bulletPos, direction, scaleX, scaleY, BulletType.PLAYER, 18f, 16f);
+            
+            Sound.shoot();
 
             bullets.add(bullet);
             shootTimer = 0.4f;
@@ -180,6 +182,7 @@ public class Player {
         if (invincibilityTimer <= 0f && currentLives > 0) {
             currentLives--;
             invincibilityTimer = invincibilityTime;
+            Sound.hurtPlayer();
             return true;
         }
         return false;

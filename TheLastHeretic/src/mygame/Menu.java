@@ -14,12 +14,13 @@ import com.jme3.input.controls.ActionListener;
  */
 public class Menu {
 
-    private Picture playBtn, controlsBtn, quitBtn, background;
+    private Picture playBtn, controlsBtn, creditsBtn, quitBtn, background, title;
     private boolean visible = true;
 
     public interface MenuListener {
         void onPlay();
         void onControls();
+        void onCredits(); 
         void onQuit();
     }
 
@@ -32,49 +33,93 @@ public class Menu {
         background.setHeight(sh);
         background.setLocalTranslation(0, 0, 5);
 
-        // bottone play
+        // TITOLO (immagine centrata in alto)
+        title = new Picture("Title");
+        title.setImage(assetManager, "Textures/title.png", true);
+
+        // dimensioni del titolo (regolabili)
+        float titleWidth = sw * 0.70f;
+        float titleHeight = sh * 0.45f;
+        title.setWidth(titleWidth);
+        title.setHeight(titleHeight);
+
+        // centratura
+        float titleX = (sw - titleWidth) / 2f;
+        float titleY = sh - titleHeight - (sh * 0.12f);  
+
+        title.setLocalTranslation(titleX, titleY, 6);
+    
+        // DIMENSIONI PULSANTI (più alti)
+        float btnWidth = sw * 0.50f;
+        float btnHeight = sh * 0.56f;
+    
+        // centro orizzontale
+        float centerX = (sw - btnWidth) / 2f;
+
+        // distanza verticale per pulsanti così grandi
+        float gap = btnHeight * 0.25f;
+
+        // primo pulsante (Play) leggermente sopra il centro
+        float centerY = (sh / 2f) + (gap * 1.1f);
+    
+        // PLAY
         playBtn = new Picture("Play");
         playBtn.setImage(assetManager, "Textures/play.png", true);
-        playBtn.setWidth(sw * 0.3f);
-        playBtn.setHeight(sh * 0.1f);
-        playBtn.setLocalTranslation(sw * 0.35f, sh * 0.55f, 6);
-
-        // bottone controls
+        playBtn.setWidth(btnWidth);
+        playBtn.setHeight(btnHeight);
+        playBtn.setLocalTranslation(centerX, centerY, 6);
+    
+        // CONTROLS
         controlsBtn = new Picture("Controls");
         controlsBtn.setImage(assetManager, "Textures/controls.png", true);
-        controlsBtn.setWidth(sw * 0.3f);
-        controlsBtn.setHeight(sh * 0.1f);
-        controlsBtn.setLocalTranslation(sw * 0.35f, sh * 0.40f, 6);
-
-        // bottone quit
+        controlsBtn.setWidth(btnWidth);
+        controlsBtn.setHeight(btnHeight);
+        controlsBtn.setLocalTranslation(centerX, centerY - gap, 7);
+    
+        // CREDITS
+        creditsBtn = new Picture("Credits");
+        creditsBtn.setImage(assetManager, "Textures/credits.png", true);
+        creditsBtn.setWidth(btnWidth);
+        creditsBtn.setHeight(btnHeight);
+        creditsBtn.setLocalTranslation(centerX, centerY - gap * 2, 7);
+    
+        // QUIT
         quitBtn = new Picture("Quit");
         quitBtn.setImage(assetManager, "Textures/quit.png", true);
-        quitBtn.setWidth(sw * 0.3f);
-        quitBtn.setHeight(sh * 0.1f);
-        quitBtn.setLocalTranslation(sw * 0.35f, sh * 0.25f, 6);
-
-        // aggiungi a gui
+        quitBtn.setWidth(btnWidth);
+        quitBtn.setHeight(btnHeight);
+        quitBtn.setLocalTranslation(centerX, centerY - gap * 3, 7);
+    
+        // Aggiungi elementi alla GUI
         guiNode.attachChild(background);
+        guiNode.attachChild(title);
         guiNode.attachChild(playBtn);
         guiNode.attachChild(controlsBtn);
+        guiNode.attachChild(creditsBtn);
         guiNode.attachChild(quitBtn);
-
-        // input
+    
+        // Input
         input.addMapping("MenuClick", new MouseButtonTrigger(MouseInput.BUTTON_LEFT));
         input.addListener(new ActionListener() {
             @Override
             public void onAction(String name, boolean isPressed, float tpf) {
                 if (!visible || !isPressed) return;
-
+    
                 float mx = input.getCursorPosition().x;
                 float my = input.getCursorPosition().y;
-
-                if (isInside(playBtn, mx, my)) listener.onPlay();
-                if (isInside(controlsBtn, mx, my)) listener.onControls();
-                if (isInside(quitBtn, mx, my)) listener.onQuit();
+    
+                if (isInside(playBtn, mx, my)) {
+                    listener.onPlay();
+                } else if (isInside(controlsBtn, mx, my)) {
+                    listener.onControls();
+                } else if (isInside(creditsBtn, mx, my)) {
+                    listener.onCredits();
+                } else if (isInside(quitBtn, mx, my)) {
+                    listener.onQuit();
+                }                
             }
         }, "MenuClick");
-    }
+    }    
 
     private boolean isInside(Picture btn, float mx, float my) {
         float x = btn.getLocalTranslation().x;
@@ -87,8 +132,10 @@ public class Menu {
     public void hide(Node guiNode) {
         if (!visible) return;
         guiNode.detachChild(background);
+        guiNode.detachChild(title); 
         guiNode.detachChild(playBtn);
         guiNode.detachChild(controlsBtn);
+        guiNode.detachChild(creditsBtn);
         guiNode.detachChild(quitBtn);
         visible = false;
     }
