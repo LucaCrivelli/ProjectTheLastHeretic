@@ -3,7 +3,6 @@ package mygame;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.ui.Picture;
-import com.jme3.math.Vector3f;
 
 /**
  *

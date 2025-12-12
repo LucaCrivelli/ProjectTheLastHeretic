@@ -10,7 +10,7 @@ import com.jme3.math.Vector3f;
 import mygame.Bullet.BulletType;
 
 /**
- *Enemy semplice: pattuglia tra minX e maxX, insegue il player se entro aggroRange.
+ *Enemy: pattuglia tra minX e maxX, insegue il player se entro aggroRange.
  * Usa due texture (right/left).
  * 
  * @author luca crivelli

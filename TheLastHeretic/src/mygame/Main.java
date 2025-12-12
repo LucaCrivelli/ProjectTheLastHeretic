@@ -7,7 +7,6 @@ import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.MouseInput;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
-import com.jme3.scene.Node;
 import com.jme3.ui.Picture;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -38,8 +37,6 @@ public class Main extends SimpleApplication {
     
     private boolean gameStarted = false;
 
-    private CreditsScreen creditsScreen; 
-    private ControlsScreen controlsScreen;
     private boolean showingControls = false;
     private Menu.MenuListener startMenuListener;
 
@@ -56,7 +53,6 @@ public class Main extends SimpleApplication {
         setDisplayStatView(false);
         flyCam.setEnabled(false);
 
-
         Bullet.preload(assetManager);
         Sound.init(assetManager);
 
@@ -65,51 +61,34 @@ public class Main extends SimpleApplication {
         float scaleY = sh / 768f;
         float scaleX = sw / 1024f;
 
-        // salva il listener in una variabile per poterlo riusare
-        startMenuListener = new Menu.MenuListener() {
+        // Listener del menu principale
+        Menu.MenuListener startMenuListener = new Menu.MenuListener() {
             @Override
             public void onPlay() {
-                startMenu.hide(guiNode);
-                gameStarted = true;
+                startMenu.hideCurrentScreen(); // nasconde il menu
+                gameStarted = true;            // inizia il gioco
             }
 
             @Override
             public void onControls() {
-                startMenu.hide(guiNode);
-                showingControls = true;
-
-                controlsScreen = new ControlsScreen(assetManager, guiNode, inputManager, sw, sh, new ControlsScreen.ControlsListener() {
-                    @Override
-                    public void onMenu() {
-                        controlsScreen.hide(guiNode);
-                        showingControls = false;
-                        startMenu = new Menu(assetManager, guiNode, inputManager, sw, sh, startMenuListener);
-                    }
-                });
+                startMenu.hideCurrentScreen(); // nasconde il menu principale
+                startMenu.showControlsScreen(); // mostra lo schermo controlli
             }
 
             @Override
             public void onCredits() {
-                startMenu.hide(guiNode);
-
-                creditsScreen = new CreditsScreen(assetManager, guiNode, inputManager, sw, sh,new CreditsScreen.CreditsListener() {
-                    @Override
-                    public void onMenu() {
-                        creditsScreen.hide(guiNode);
-                        startMenu = new Menu(assetManager, guiNode, inputManager, sw, sh, startMenuListener);
-                    }
-                });
+                startMenu.hideCurrentScreen(); // nasconde il menu principale
+                startMenu.showCreditsScreen(); // mostra lo schermo crediti
             }
 
             @Override
             public void onQuit() {
-                stop();
+                stop(); // chiude il gioco
             }
         };
 
-        // crea il menu principale
+        // crea il menu principale (gestisce tutto internamente)
         startMenu = new Menu(assetManager, guiNode, inputManager, sw, sh, startMenuListener);
-        
 
         gameStarted = false;
 
@@ -206,18 +185,20 @@ public class Main extends SimpleApplication {
         if (idx < 0 || idx >= rooms.size()) return;
 
         // rimuovi oggetti stanza precedente
-        for (Bullet b : bullets)
+        for (Bullet b : bullets){
             if (b.getGeometry().getParent() != null) guiNode.detachChild(b.getGeometry());
+        }
         bullets.clear();
 
-        if (currentBackground != null)
+        if (currentBackground != null){
             guiNode.detachChild(currentBackground);
+        }
 
         // rimuovi trash della stanza precedente
         TrashCan old = rooms.get(currentRoomIndex).getTrashCan();
-        if (old != null && old.getPicture().getParent() != null)
+        if (old != null && old.getPicture().getParent() != null){
             guiNode.detachChild(old.getPicture());
-
+        }
         // rimuovi nemici
         for (Room r : rooms){
             for (Enemy en : r.getEnemies()){
@@ -298,8 +279,7 @@ public class Main extends SimpleApplication {
             // Blocco player contro muri invisibili se ci sono nemici
             if (!currentRoom.getEnemies().isEmpty()) {
                 for (Wall wall : currentRoom.getWalls()) {
-                    if (wall.collides(player.getPosition().x, player.getPosition().y,
-                                    player.getHalfWidth(), player.getHalfHeight())) {
+                    if (wall.collides(player.getPosition().x, player.getPosition().y, player.getHalfWidth(), player.getHalfHeight())) {
                         // rollback posizione
                         player.setPosition(oldPos.x, oldPos.y);
                         player.getNode().setLocalTranslation(oldPos.x, oldPos.y, 0.2f);

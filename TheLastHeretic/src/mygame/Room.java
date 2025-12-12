@@ -4,10 +4,7 @@
  */
 package mygame;
 
-import com.jme3.asset.AssetManager;
 import com.jme3.ui.Picture;
-import com.jme3.scene.Node;
-import com.jme3.system.AppSettings;
 /**
  *
  * @author Luca Crivelli
