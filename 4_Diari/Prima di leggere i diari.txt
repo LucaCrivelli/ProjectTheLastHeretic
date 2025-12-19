@@ -1,0 +1,4 @@
+Questo file esiste per dare informazioni sullo sviluppo che non sono riuscito per mancanza di tempo a mettere nei diari.
+
+Per ogni giornata dove ho sviluppato ho usato ChatGPT, per alcune cose meno per altre molto di più
+
